@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, TextInput, TouchableOpacity, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, TextInput, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 
 interface ChatInputProps {
@@ -18,10 +18,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
   };
 
   return (
-    <KeyboardAvoidingView 
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      className="bg-zinc-950 border-t border-zinc-800"
-    >
+    <View className="bg-zinc-950 border-t border-zinc-800">
       <View className="px-4 py-4 items-center">
         <View className="w-full max-w-3xl flex-row items-end gap-3">
           <View className="flex-1 bg-zinc-800 rounded-3xl px-5 py-3 flex-row items-center border border-zinc-700">
@@ -55,7 +52,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
           </TouchableOpacity>
         </View>
       </View>
-    </KeyboardAvoidingView>
+    </View>
   );
 };
 

@@ -5,9 +5,10 @@ import { Ionicons } from '@expo/vector-icons';
 interface ChatInputProps {
   onSend: (message: string) => void;
   disabled?: boolean;
+  onAttachmentPress?: () => void;
 }
 
-export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
+export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled, onAttachmentPress }) => {
   const [message, setMessage] = useState('');
 
   const handleSend = () => {
@@ -23,9 +24,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
         <View className="w-full max-w-3xl flex-row items-end gap-3">
           <View className="flex-1 bg-zinc-800 rounded-3xl px-4 py-3 flex-row items-center gap-2 border border-zinc-700">
             <TouchableOpacity 
-              onPress={() => {
-                // TODO: Implement file upload functionality
-              }}
+              onPress={onAttachmentPress}
               className="rounded-full active:bg-zinc-700"
               disabled={disabled}
             >

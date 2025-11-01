@@ -3,7 +3,8 @@ import { View, ScrollView, Text, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-reanimated';
 import { Ionicons } from '@expo/vector-icons';
-import { MessageBubble, ChatInput, EmptyState, Sidebar } from '@/components';
+import { BottomSheetModal } from '@gorhom/bottom-sheet';
+import { MessageBubble, ChatInput, EmptyState, Sidebar, AttachmentBottomSheet } from '@/components';
 import { useChatContext } from '@/context';
 import type { Message } from '@/context';
 
@@ -38,6 +39,7 @@ export const ChatScreen: React.FC = () => {
   const [isStreaming, setIsStreaming] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const streamingIntervalRef = useRef<any>(null);
+  const attachmentBottomSheetRef = useRef<BottomSheetModal>(null);
 
   const messages = currentChat?.messages || [];
 
@@ -121,6 +123,15 @@ export const ChatScreen: React.FC = () => {
     setSidebarVisible(!sidebarVisible);
   };
 
+  const handleOpenAttachments = () => {
+    attachmentBottomSheetRef.current?.present();
+  };
+
+  const handleAttachmentSelect = (optionId: string) => {
+    // TODO: Implement attachment handling for camera, photos, and files
+    console.log('Selected attachment option:', optionId);
+  };
+
   // Animated keyboard handling - only for input
   const keyboard = useAnimatedKeyboard();
   const inputAnimatedStyles = useAnimatedStyle(() => ({
@@ -193,8 +204,18 @@ export const ChatScreen: React.FC = () => {
         
         {/* Input - moves up with keyboard */}
         <Animated.View style={inputAnimatedStyles}>
-          <ChatInput onSend={handleSend} disabled={isTyping} />
+          <ChatInput 
+            onSend={handleSend} 
+            disabled={isTyping}
+            onAttachmentPress={handleOpenAttachments}
+          />
         </Animated.View>
+
+        {/* Attachment Bottom Sheet */}
+        <AttachmentBottomSheet 
+          ref={attachmentBottomSheetRef}
+          onOptionSelect={handleAttachmentSelect}
+        />
       </View>
     </SafeAreaView>
   );

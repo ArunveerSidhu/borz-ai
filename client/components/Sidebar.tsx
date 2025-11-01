@@ -250,11 +250,33 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
               )}
             </ScrollView>
 
-            {/* Footer */}
-            <View className="px-4 py-3 border-t border-zinc-800">
-              <Text className="text-zinc-500 text-xs text-center">
-                Borz AI - Your Intelligent Assistant
-              </Text>
+            {/* User Profile Footer */}
+            <View className="px-3 py-3 border-t border-zinc-800">
+              <TouchableOpacity 
+                className="flex-row items-center gap-3 p-3 rounded-xl bg-zinc-800/50 active:bg-zinc-800"
+                onPress={() => {
+                  // TODO: Navigate to user profile/settings
+                  console.log('User profile pressed');
+                }}
+              >
+                {/* Avatar */}
+                <View className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 items-center justify-center">
+                  <Text className="text-white text-lg font-bold">JD</Text>
+                </View>
+                
+                {/* User Info */}
+                <View className="flex-1">
+                  <Text className="text-white text-base font-semibold mb-0.5">
+                    John Doe
+                  </Text>
+                  <Text className="text-zinc-400 text-xs">
+                    john.doe@example.com
+                  </Text>
+                </View>
+                
+                {/* Settings Icon */}
+                <Ionicons name="settings-outline" size={20} color="#a1a1aa" />
+              </TouchableOpacity>
             </View>
           </View>
         </SafeAreaView>

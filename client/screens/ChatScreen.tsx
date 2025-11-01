@@ -121,9 +121,9 @@ export const ChatScreen: React.FC = () => {
     setSidebarVisible(!sidebarVisible);
   };
 
-  // Animated keyboard handling
+  // Animated keyboard handling - only for input
   const keyboard = useAnimatedKeyboard();
-  const animatedStyles = useAnimatedStyle(() => ({
+  const inputAnimatedStyles = useAnimatedStyle(() => ({
     transform: [{ translateY: -keyboard.height.value }],
   }));
 
@@ -147,50 +147,52 @@ export const ChatScreen: React.FC = () => {
           <Ionicons name="menu" size={24} color="#a1a1aa" />
         </TouchableOpacity>
         
-        <Animated.View style={[{ flex: 1 }, animatedStyles]}>
-          {messages.length === 0 ? (
-            <EmptyState onSuggestionPress={handleSuggestionPress} />
-          ) : (
-            <ScrollView 
-              ref={scrollViewRef}
-              className="flex-1"
-              contentContainerStyle={{ paddingTop: 60, paddingBottom: 16 }}
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-            >
-              {messages.map(message => (
-                <MessageBubble
-                  key={message.id}
-                  message={message.text}
-                  isUser={message.isUser}
-                />
-              ))}
-              
-              {isTyping && !isStreaming && (
-                <View className="w-full px-4 py-3 flex-row justify-start">
-                  <View className="max-w-[85%]">
-                    <Text className="text-zinc-500 text-xs font-medium mb-2 uppercase tracking-wide">
-                      Borz AI
-                    </Text>
-                    <View className="flex-row gap-1.5">
-                      <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" />
-                      <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-                      <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
-                    </View>
+        {/* Chat Content - stays in place */}
+        {messages.length === 0 ? (
+          <EmptyState onSuggestionPress={handleSuggestionPress} />
+        ) : (
+          <ScrollView 
+            ref={scrollViewRef}
+            className="flex-1"
+            contentContainerStyle={{ paddingTop: 60, paddingBottom: 16 }}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+          >
+            {messages.map(message => (
+              <MessageBubble
+                key={message.id}
+                message={message.text}
+                isUser={message.isUser}
+              />
+            ))}
+            
+            {isTyping && !isStreaming && (
+              <View className="w-full px-4 py-3 flex-row justify-start">
+                <View className="max-w-[85%]">
+                  <Text className="text-zinc-500 text-xs font-medium mb-2 uppercase tracking-wide">
+                    Borz AI
+                  </Text>
+                  <View className="flex-row gap-1.5">
+                    <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" />
+                    <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                    <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
                   </View>
                 </View>
-              )}
-              
-              {isStreaming && streamingMessage && (
-                <MessageBubble
-                  message={streamingMessage}
-                  isUser={false}
-                  isStreaming={true}
-                />
-              )}
-            </ScrollView>
-          )}
-          
+              </View>
+            )}
+            
+            {isStreaming && streamingMessage && (
+              <MessageBubble
+                message={streamingMessage}
+                isUser={false}
+                isStreaming={true}
+              />
+            )}
+          </ScrollView>
+        )}
+        
+        {/* Input - moves up with keyboard */}
+        <Animated.View style={inputAnimatedStyles}>
           <ChatInput onSend={handleSend} disabled={isTyping} />
         </Animated.View>
       </View>

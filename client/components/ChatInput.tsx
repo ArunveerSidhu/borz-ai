@@ -19,9 +19,23 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
 
   return (
     <View className="bg-zinc-950 border-t border-zinc-800">
-      <View className="px-4 py-4 items-center">
+      <View className="px-4 py-4 mb-4 items-center">
         <View className="w-full max-w-3xl flex-row items-end gap-3">
-          <View className="flex-1 bg-zinc-800 rounded-3xl px-5 py-3 flex-row items-center border border-zinc-700">
+          <View className="flex-1 bg-zinc-800 rounded-3xl px-4 py-3 flex-row items-center gap-2 border border-zinc-700">
+            <TouchableOpacity 
+              onPress={() => {
+                // TODO: Implement file upload functionality
+              }}
+              className="rounded-full active:bg-zinc-700"
+              disabled={disabled}
+            >
+              <Ionicons 
+                name="add-circle" 
+                size={24} 
+                color={disabled ? '#52525b' : '#a1a1aa'} 
+              />
+            </TouchableOpacity>
+            
             <TextInput
               value={message}
               onChangeText={setMessage}
@@ -38,7 +52,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({ onSend, disabled }) => {
           <TouchableOpacity 
             onPress={handleSend}
             disabled={!message.trim() || disabled}
-            className={`w-11 h-11 rounded-full items-center justify-center ${
+            className={`w-12 h-12 rounded-full items-center justify-center ${
               message.trim() && !disabled
                 ? 'bg-violet-500 active:bg-violet-600' 
                 : 'bg-zinc-800'

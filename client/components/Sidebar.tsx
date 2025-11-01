@@ -1,7 +1,16 @@
-import React, { useEffect, useRef, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Animated, Dimensions, Pressable } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { View, Text, TouchableOpacity, ScrollView, Dimensions, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { GestureDetector, Gesture } from 'react-native-gesture-handler';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  runOnJS,
+  interpolate,
+  Extrapolate
+} from 'react-native-reanimated';
 import { useChatContext } from '@/context';
 
 const SIDEBAR_WIDTH = Dimensions.get('window').width * 0.85;
@@ -14,38 +23,15 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
   const { chats, currentChatId, createNewChat, switchChat, deleteChat } = useChatContext();
   const [isAnimating, setIsAnimating] = useState(false);
-  const slideAnim = useRef(new Animated.Value(-SIDEBAR_WIDTH)).current;
-  const backdropOpacity = useRef(new Animated.Value(0)).current;
+  const translateX = useSharedValue(-SIDEBAR_WIDTH);
 
   useEffect(() => {
     if (visible) {
       setIsAnimating(true);
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: 0,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-        Animated.timing(backdropOpacity, {
-          toValue: 1,
-          duration: 300,
-          useNativeDriver: true,
-        }),
-      ]).start();
+      translateX.value = withTiming(0, { duration: 300 });
     } else {
-      Animated.parallel([
-        Animated.timing(slideAnim, {
-          toValue: -SIDEBAR_WIDTH,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-        Animated.timing(backdropOpacity, {
-          toValue: 0,
-          duration: 250,
-          useNativeDriver: true,
-        }),
-      ]).start(() => {
-        setIsAnimating(false);
+      translateX.value = withTiming(-SIDEBAR_WIDTH, { duration: 250 }, () => {
+        runOnJS(setIsAnimating)(false);
       });
     }
   }, [visible]);
@@ -81,6 +67,48 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
     }
   };
 
+  // Pan gesture for dragging the sidebar
+  const panGesture = Gesture.Pan()
+    .onUpdate((event) => {
+      // Only allow dragging to the left (closing direction)
+      const newTranslateX = Math.min(0, event.translationX);
+      translateX.value = newTranslateX;
+    })
+    .onEnd((event) => {
+      const dragDistance = Math.abs(event.translationX);
+      const dragPercentage = dragDistance / SIDEBAR_WIDTH;
+      
+      // If dragged more than 30% or velocity is high enough, close the sidebar
+      if (dragPercentage > 0.3 || event.velocityX < -500) {
+        translateX.value = withTiming(-SIDEBAR_WIDTH, { duration: 200 });
+        runOnJS(onClose)();
+      } else {
+        // Otherwise, snap back to open position
+        translateX.value = withTiming(0, { duration: 200 });
+      }
+    })
+    .enabled(visible);
+
+  // Animated styles for sidebar
+  const sidebarAnimatedStyle = useAnimatedStyle(() => {
+    return {
+      transform: [{ translateX: translateX.value }],
+    };
+  });
+
+  // Animated styles for backdrop with opacity following the translation
+  const backdropAnimatedStyle = useAnimatedStyle(() => {
+    const opacity = interpolate(
+      translateX.value,
+      [-SIDEBAR_WIDTH, 0],
+      [0, 1],
+      Extrapolate.CLAMP
+    );
+    return {
+      opacity,
+    };
+  });
+
   if (!visible && !isAnimating) {
     return null;
   }
@@ -99,15 +127,17 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
     >
       {/* Backdrop */}
       <Animated.View
-        style={{
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          backgroundColor: 'rgba(0, 0, 0, 0.5)',
-          opacity: backdropOpacity,
-        }}
+        style={[
+          {
+            position: 'absolute',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          },
+          backdropAnimatedStyle,
+        ]}
       >
         <Pressable 
           style={{ flex: 1 }}
@@ -115,17 +145,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
         />
       </Animated.View>
 
-      {/* Sidebar */}
-      <Animated.View 
-        style={{ 
-          position: 'absolute',
-          top: 0,
-          left: 0,
-          bottom: 0,
-          width: SIDEBAR_WIDTH,
-          transform: [{ translateX: slideAnim }],
-        }}
-      >
+      {/* Sidebar with Gesture Handler */}
+      <GestureDetector gesture={panGesture}>
+        <Animated.View 
+          style={[
+            { 
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              bottom: 0,
+              width: SIDEBAR_WIDTH,
+            },
+            sidebarAnimatedStyle,
+          ]}
+        >
         <SafeAreaView className="flex-1 bg-zinc-900 border-r border-zinc-800" edges={['bottom', 'left']}>
           <View className="flex-1">
             {/* Header */}
@@ -225,7 +258,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
             </View>
           </View>
         </SafeAreaView>
-      </Animated.View>
+        </Animated.View>
+      </GestureDetector>
     </View>
   );
 };

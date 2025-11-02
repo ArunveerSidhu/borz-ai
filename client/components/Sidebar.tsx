@@ -11,6 +11,7 @@ import Animated, {
   interpolate,
   Extrapolate
 } from 'react-native-reanimated';
+import { useRouter } from 'expo-router';
 import { useChatContext } from '@/context';
 
 const SIDEBAR_WIDTH = Dimensions.get('window').width * 0.85;
@@ -21,6 +22,7 @@ interface SidebarProps {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
+  const router = useRouter();
   const { chats, currentChatId, createNewChat, switchChat, deleteChat } = useChatContext();
   const [isAnimating, setIsAnimating] = useState(false);
   const translateX = useSharedValue(-SIDEBAR_WIDTH);
@@ -255,8 +257,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
               <TouchableOpacity 
                 className="flex-row items-center gap-3 p-3 rounded-xl bg-zinc-800/50 active:bg-zinc-800"
                 onPress={() => {
-                  // TODO: Navigate to user profile/settings
-                  console.log('User profile pressed');
+                  onClose();
+                  router.push('./settings' as any);
                 }}
               >
                 {/* Avatar */}

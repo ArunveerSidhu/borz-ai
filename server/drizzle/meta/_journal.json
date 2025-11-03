@@ -8,6 +8,13 @@
       "when": 1762106441249,
       "tag": "0000_wise_puff_adder",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1762157718124,
+      "tag": "0001_groovy_arachne",
+      "breakpoints": true
     }
   ]
 }

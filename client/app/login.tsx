@@ -1,6 +1,11 @@
 import { LoginScreen } from '@/screens';
+import { GuestGuard } from '@/components';
 
 export default function Login() {
-  return <LoginScreen />;
+  return (
+    <GuestGuard>
+      <LoginScreen />
+    </GuestGuard>
+  );
 }
 

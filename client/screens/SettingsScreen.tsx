@@ -3,9 +3,11 @@ import { View, Text, TouchableOpacity, ScrollView, Switch, Alert } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import { useAuth } from '@/context';
 
 export const SettingsScreen: React.FC = () => {
   const router = useRouter();
+  const { user, logout } = useAuth();
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hapticFeedback, setHapticFeedback] = useState(true);
   const [darkMode, setDarkMode] = useState(true);
@@ -34,10 +36,18 @@ export const SettingsScreen: React.FC = () => {
       'Are you sure you want to logout?',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Logout', style: 'destructive', onPress: () => {
-          // TODO: Implement logout
-          console.log('Logout');
-        }}
+        { 
+          text: 'Logout', 
+          style: 'destructive', 
+          onPress: async () => {
+            try {
+              await logout();
+              router.replace('/login' as any);
+            } catch (error) {
+              Alert.alert('Error', 'Failed to logout. Please try again.');
+            }
+          }
+        }
       ]
     );
   };
@@ -129,8 +139,8 @@ export const SettingsScreen: React.FC = () => {
           <SettingsSection title="Profile">
             <SettingsItem
               icon="person-outline"
-              title="John Doe"
-              subtitle="john.doe@example.com"
+              title={user?.name || 'User'}
+              subtitle={user?.email || 'No email'}
               onPress={() => console.log('Edit profile')}
             />
             <SettingsItem

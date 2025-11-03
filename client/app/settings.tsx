@@ -1,6 +1,11 @@
 import { SettingsScreen } from "@/screens";
+import { AuthGuard } from "@/components";
 
 export default function Settings() {
-  return <SettingsScreen />;
+  return (
+    <AuthGuard>
+      <SettingsScreen />
+    </AuthGuard>
+  );
 }
 

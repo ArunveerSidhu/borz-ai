@@ -1,6 +1,11 @@
 import { SignUpScreen } from '@/screens';
+import { GuestGuard } from '@/components';
 
 export default function SignUp() {
-  return <SignUpScreen />;
+  return (
+    <GuestGuard>
+      <SignUpScreen />
+    </GuestGuard>
+  );
 }
 

@@ -1,6 +1,11 @@
 import { ResetPasswordScreen } from '@/screens';
+import { GuestGuard } from '@/components';
 
 export default function ResetPassword() {
-  return <ResetPasswordScreen />;
+  return (
+    <GuestGuard>
+      <ResetPasswordScreen />
+    </GuestGuard>
+  );
 }
 

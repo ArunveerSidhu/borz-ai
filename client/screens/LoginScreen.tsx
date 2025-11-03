@@ -4,9 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useAuth } from '@/context';
 
 export const LoginScreen: React.FC = () => {
   const router = useRouter();
+  const { login } = useAuth();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -20,13 +22,14 @@ export const LoginScreen: React.FC = () => {
 
     setIsLoading(true);
     
-    // TODO: Implement actual login logic
-    setTimeout(() => {
-      setIsLoading(false);
-      console.log('Login with:', { email, password });
-      // Navigate to chat screen
+    try {
+      await login({ email, password });
       router.replace('/chat' as any);
-    }, 1500);
+    } catch (error: any) {
+      Alert.alert('Login Failed', error.message || 'An error occurred during login');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleForgotPassword = () => {

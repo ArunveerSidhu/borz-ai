@@ -4,9 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import { useAuth } from '@/context';
 
 export const SignUpScreen: React.FC = () => {
   const router = useRouter();
+  const { signup } = useAuth();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -39,14 +41,16 @@ export const SignUpScreen: React.FC = () => {
 
     setIsLoading(true);
     
-    // TODO: Implement actual sign up logic
-    setTimeout(() => {
-      setIsLoading(false);
-      console.log('Sign up with:', { name, email, password });
+    try {
+      await signup({ name, email, password });
       Alert.alert('Success', 'Account created successfully!', [
         { text: 'OK', onPress: () => router.replace('/chat' as any) }
       ]);
-    }, 1500);
+    } catch (error: any) {
+      Alert.alert('Sign Up Failed', error.message || 'An error occurred during sign up');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleLogin = () => {

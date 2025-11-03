@@ -32,13 +32,12 @@ const formatTime = () => {
 };
 
 export const ChatScreen: React.FC = () => {
-  const { currentChat, addMessage, createNewChat } = useChatContext();
+  const { currentChat, sendMessage, createNewChat } = useChatContext();
   const [isTyping, setIsTyping] = useState(false);
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [streamingMessage, setStreamingMessage] = useState<string>('');
   const [isStreaming, setIsStreaming] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
-  const streamingIntervalRef = useRef<any>(null);
   const attachmentBottomSheetRef = useRef<BottomSheetModal>(null);
 
   const messages = currentChat?.messages || [];
@@ -53,66 +52,28 @@ export const ChatScreen: React.FC = () => {
     scrollToBottom();
   }, [messages, isTyping, streamingMessage]);
 
-  useEffect(() => {
-    return () => {
-      if (streamingIntervalRef.current) {
-        clearInterval(streamingIntervalRef.current);
-      }
-    };
-  }, []);
+  const handleSend = async (text: string) => {
+    try {
+      setIsTyping(true);
+      setIsStreaming(true);
+      setStreamingMessage('');
 
-  const streamResponse = (fullText: string) => {
-    const words = fullText.split(' ');
-    let currentIndex = 0;
-    
-    setIsStreaming(true);
-    setStreamingMessage('');
-    
-    streamingIntervalRef.current = setInterval(() => {
-      if (currentIndex < words.length) {
-        setStreamingMessage(prev => {
-          const newText = prev + (prev ? ' ' : '') + words[currentIndex];
-          return newText;
-        });
-        currentIndex++;
-      } else {
-        // Streaming complete
-        if (streamingIntervalRef.current) {
-          clearInterval(streamingIntervalRef.current);
-        }
-        
-        const aiMessage: Message = {
-          id: Date.now().toString(),
-          text: fullText,
-          isUser: false,
-          timestamp: formatTime()
-        };
-        
-        addMessage(aiMessage);
-        setStreamingMessage('');
-        setIsStreaming(false);
-        setIsTyping(false);
-      }
-    }, 50); // Stream one word every 50ms
-  };
+      // Send message with streaming callback
+      await sendMessage(text, (chunk) => {
+        setStreamingMessage(prev => prev + chunk);
+      });
 
-  const handleSend = (text: string) => {
-    // Add user message
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text,
-      isUser: true,
-      timestamp: formatTime()
-    };
-    
-    addMessage(userMessage);
-    setIsTyping(true);
-
-    // Simulate AI thinking delay, then stream response
-    setTimeout(() => {
-      const fullResponse = getRandomResponse();
-      streamResponse(fullResponse);
-    }, 800);
+      // Clear streaming state after completion
+      setStreamingMessage('');
+      setIsStreaming(false);
+      setIsTyping(false);
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      setIsTyping(false);
+      setIsStreaming(false);
+      setStreamingMessage('');
+      // You might want to show an error message to the user
+    }
   };
 
   const handleSuggestionPress = (text: string) => {

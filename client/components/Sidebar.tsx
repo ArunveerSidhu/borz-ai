@@ -13,6 +13,7 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
 import { useChatContext } from '@/context';
+import { useAuth } from '@/context';
 
 const SIDEBAR_WIDTH = Dimensions.get('window').width * 0.85;
 
@@ -24,6 +25,7 @@ interface SidebarProps {
 export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
   const router = useRouter();
   const { chats, currentChatId, createNewChat, switchChat, deleteChat } = useChatContext();
+  const { user } = useAuth();
   const [isAnimating, setIsAnimating] = useState(false);
   const translateX = useSharedValue(-SIDEBAR_WIDTH);
 
@@ -38,13 +40,13 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
     }
   }, [visible]);
 
-  const handleChatSelect = (chatId: string) => {
-    switchChat(chatId);
+  const handleChatSelect = async (chatId: string) => {
+    await switchChat(chatId);
     onClose();
   };
 
-  const handleNewChat = () => {
-    createNewChat();
+  const handleNewChat = async () => {
+    await createNewChat();
     onClose();
   };
 
@@ -263,16 +265,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
               >
                 {/* Avatar */}
                 <View className="w-12 h-12 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 items-center justify-center">
-                  <Text className="text-white text-lg font-bold">JD</Text>
+                  <Text className="text-white text-lg font-bold">
+                    {user?.name?.substring(0, 2).toUpperCase() || 'U'}
+                  </Text>
                 </View>
                 
                 {/* User Info */}
                 <View className="flex-1">
                   <Text className="text-white text-base font-semibold mb-0.5">
-                    John Doe
+                    {user?.name || 'User'}
                   </Text>
                   <Text className="text-zinc-400 text-xs">
-                    john.doe@example.com
+                    {user?.email || 'user@example.com'}
                   </Text>
                 </View>
                 

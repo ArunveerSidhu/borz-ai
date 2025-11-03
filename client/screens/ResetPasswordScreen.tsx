@@ -4,6 +4,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
+import AuthService from '@/services/auth.service';
 
 export const ResetPasswordScreen: React.FC = () => {
   const router = useRouter();
@@ -26,12 +27,14 @@ export const ResetPasswordScreen: React.FC = () => {
 
     setIsLoading(true);
     
-    // TODO: Implement actual password reset logic
-    setTimeout(() => {
-      setIsLoading(false);
+    try {
+      await AuthService.forgotPassword(email);
       setIsEmailSent(true);
-      console.log('Reset password for:', email);
-    }, 1500);
+    } catch (error: any) {
+      Alert.alert('Error', error.error || error.message || 'Failed to send reset email');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleBackToLogin = () => {

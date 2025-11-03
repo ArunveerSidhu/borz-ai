@@ -4,6 +4,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import authRoutes from './routes/auth.routes';
+import chatRoutes from './routes/chat.routes';
 
 const app = new Hono();
 
@@ -35,6 +36,7 @@ app.get('/health', (c) => {
 
 // Routes
 app.route('/auth', authRoutes);
+app.route('/api/chats', chatRoutes);
 
 // 404 handler
 app.notFound((c) => {
@@ -64,9 +66,18 @@ serve({
 
 console.log(`✅ Server is running on http://localhost:${port}`);
 console.log(`📡 REST API endpoints:`);
+console.log(`\n  Auth:`);
 console.log(`   POST   /auth/signup`);
 console.log(`   POST   /auth/login`);
 console.log(`   POST   /auth/forgot-password`);
 console.log(`   POST   /auth/reset-password`);
 console.log(`   GET    /auth/me (protected)`);
 console.log(`   GET    /auth/check`);
+console.log(`\n  Chat:`);
+console.log(`   GET    /api/chats (protected)`);
+console.log(`   POST   /api/chats (protected)`);
+console.log(`   GET    /api/chats/:chatId (protected)`);
+console.log(`   POST   /api/chats/:chatId/messages (protected, streaming)`);
+console.log(`   PATCH  /api/chats/:chatId (protected)`);
+console.log(`   DELETE /api/chats/:chatId (protected)`);
+console.log(`   DELETE /api/chats/:chatId/messages (protected)`);

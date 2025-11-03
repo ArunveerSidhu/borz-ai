@@ -1,6 +1,11 @@
 import { ChatScreen } from '@/screens';
+import { AuthGuard } from '@/components';
 
 export default function Chat() {
-  return <ChatScreen />;
+  return (
+    <AuthGuard>
+      <ChatScreen />
+    </AuthGuard>
+  );
 }
 

@@ -20,6 +20,12 @@ export const pool = new Pool({
   keepAliveInitialDelayMillis: 10000,
 });
 
+// Add error handler for pool errors
+pool.on('error', (err) => {
+  console.error('⚠️  Unexpected database pool error:', err.message);
+  // Pool will automatically create new connections
+});
+
 // Pre-warm the connection pool on startup
 pool.query('SELECT 1').catch(console.error);
 

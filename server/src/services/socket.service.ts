@@ -14,9 +14,21 @@ export class SocketService {
   private io: SocketIOServer;
 
   constructor(server: ServerType) {
+    // Configure CORS with environment variable support for Railway
+    const allowedOrigins = (process.env.CORS_ORIGINS || '')
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .concat([
+        'http://localhost:8081',
+        'http://localhost:19000',
+        'http://localhost:19006',
+        'http://10.0.2.2:3000',
+      ]);
+
     this.io = new SocketIOServer(server as any, {
       cors: {
-        origin: ['http://localhost:8081', 'http://localhost:19000', 'http://localhost:19006', 'http://10.0.2.2:3000'],
+        origin: allowedOrigins,
         credentials: true,
       },
       pingTimeout: 60000,

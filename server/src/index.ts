@@ -12,8 +12,21 @@ const app = new Hono();
 
 // Middleware
 app.use('*', logger());
+
+// Configure CORS with environment variable support for Railway
+const allowedOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map(s => s.trim())
+  .filter(Boolean)
+  .concat([
+    'http://localhost:8081',
+    'http://localhost:19000',
+    'http://localhost:19006',
+    'http://10.0.2.2:3000',
+  ]);
+
 app.use('*', cors({
-  origin: ['http://localhost:8081', 'http://localhost:19000', 'http://localhost:19006', 'http://10.0.2.2:3000'],
+  origin: allowedOrigins,
   credentials: true,
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

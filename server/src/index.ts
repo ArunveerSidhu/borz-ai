@@ -26,7 +26,7 @@ const allowedOrigins = (process.env.CORS_ORIGINS || '')
   ]);
 
 app.use('*', cors({
-  origin: allowedOrigins,
+  origin: '*',
   credentials: true,
   allowHeaders: ['Content-Type', 'Authorization'],
   allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],

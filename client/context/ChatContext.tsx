@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import ChatService, { Message as ServiceMessage, Chat as ServiceChat } from '../services/chat.service';
 import SocketManager from '../services/socket.service';
+import * as FileSystem from 'expo-file-system/legacy';
 
 const DEBUG = __DEV__; // React Native's built-in development mode flag
 
@@ -9,6 +10,9 @@ export interface Message {
   text: string;
   isUser: boolean;
   timestamp: string;
+  imageUri?: string;
+  documentUri?: string;
+  documentName?: string;
 }
 
 export interface Chat {
@@ -33,6 +37,8 @@ interface ChatContextType {
   addMessage: (message: Message) => void;
   clearCurrentChat: () => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
+  sendMessageWithImage: (content: string, imageUri: string) => Promise<void>;
+  sendMessageWithDocument: (content: string, documentUri: string, documentName: string) => Promise<void>;
   refreshChats: () => Promise<void>;
 }
 
@@ -285,6 +291,249 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   };
 
+  const sendMessageWithImage = async (content: string, imageUri: string) => {
+    let chatId = currentChatId;
+    
+    if (!chatId) {
+      chatId = await createNewChat();
+    }
+
+    if (!chatId) {
+      console.error('Failed to get or create chat ID');
+      return;
+    }
+
+    // Add user message optimistically with actual image
+    const userMessage: Message = {
+      id: `temp-${Date.now()}`,
+      text: content || 'Analyze this image',
+      isUser: true,
+      timestamp: formatTime(),
+      imageUri: imageUri,
+    };
+    addMessage(userMessage);
+
+    setIsThinking(true);
+    setStreamingMessage('');
+    streamingBufferRef.current = '';
+
+    try {
+      // Convert image to base64
+      const base64 = await FileSystem.readAsStringAsync(imageUri, {
+        encoding: 'base64',
+      });
+
+      // Get image mime type from URI extension
+      const extension = imageUri.split('.').pop()?.toLowerCase();
+      const mimeType = extension === 'png' ? 'image/png' : 'image/jpeg';
+
+      // Connect socket if not connected
+      if (!SocketManager.isConnected()) {
+        await SocketManager.connect();
+      }
+
+      // Setup listeners (similar to sendMessage)
+      const handleStart = (data: { chatId: string }) => {
+        if (data.chatId === chatId) {
+          if (DEBUG) console.log('🎬 AI response started');
+          setIsThinking(false);
+          setIsStreaming(true);
+          streamingBufferRef.current = '';
+          setStreamingMessage('');
+        }
+      };
+
+      const handleChunk = (data: { chatId: string; chunk: string }) => {
+        if (data.chatId === chatId) {
+          if (DEBUG) console.log(`📨 Received chunk (${data.chunk.length} chars)`);
+          streamingBufferRef.current += data.chunk;
+          setStreamingMessage(streamingBufferRef.current);
+        }
+      };
+
+      const handleComplete = async (data: { chatId: string; messageId: string; fullResponse: string }) => {
+        if (data.chatId === chatId) {
+          if (DEBUG) console.log('✅ AI response complete');
+          
+          streamingBufferRef.current = data.fullResponse;
+          setStreamingMessage(data.fullResponse);
+          
+          const { chat } = await ChatService.getChatById(chatId!);
+          const updatedChat = convertChat(chat);
+          setChats(prev => prev.map(c => c.id === chatId ? updatedChat : c));
+
+          setIsStreaming(false);
+          setStreamingMessage('');
+          streamingBufferRef.current = '';
+
+          SocketManager.off('ai-response-start', handleStart);
+          SocketManager.off('ai-response-chunk', handleChunk);
+          SocketManager.off('ai-response-complete', handleComplete);
+          SocketManager.off('ai-response-error', handleError);
+        }
+      };
+
+      const handleError = (data: { chatId: string; error: string }) => {
+        if (data.chatId === chatId) {
+          console.error('❌ AI response error:', data.error);
+          
+          setIsThinking(false);
+          setIsStreaming(false);
+          setStreamingMessage('');
+          streamingBufferRef.current = '';
+          
+          SocketManager.off('ai-response-start', handleStart);
+          SocketManager.off('ai-response-chunk', handleChunk);
+          SocketManager.off('ai-response-complete', handleComplete);
+          SocketManager.off('ai-response-error', handleError);
+        }
+      };
+
+      SocketManager.onAIResponseStart(handleStart);
+      SocketManager.onAIResponseChunk(handleChunk);
+      SocketManager.onAIResponseComplete(handleComplete);
+      SocketManager.onAIResponseError(handleError);
+
+      // Send message with image via WebSocket
+      await SocketManager.sendMessageWithImage(chatId, content, base64, mimeType);
+
+    } catch (error) {
+      console.error('Failed to send message with image:', error);
+      setIsThinking(false);
+      setIsStreaming(false);
+      setStreamingMessage('');
+      streamingBufferRef.current = '';
+      throw error;
+    }
+  };
+
+  const sendMessageWithDocument = async (content: string, documentUri: string, documentName: string) => {
+    let chatId = currentChatId;
+    
+    if (!chatId) {
+      chatId = await createNewChat();
+    }
+
+    if (!chatId) {
+      console.error('Failed to get or create chat ID');
+      return;
+    }
+
+    // Add user message optimistically with document reference
+    const userMessage: Message = {
+      id: `temp-${Date.now()}`,
+      text: content || 'Analyze this document',
+      isUser: true,
+      timestamp: formatTime(),
+      documentUri: documentUri,
+      documentName: documentName,
+    };
+    addMessage(userMessage);
+
+    setIsThinking(true);
+    setStreamingMessage('');
+    streamingBufferRef.current = '';
+
+    try {
+      // Convert document to base64
+      const base64 = await FileSystem.readAsStringAsync(documentUri, {
+        encoding: 'base64',
+      });
+
+      // Get document mime type from URI extension
+      const extension = documentUri.split('.').pop()?.toLowerCase();
+      let mimeType = 'application/octet-stream';
+      
+      if (extension === 'pdf') {
+        mimeType = 'application/pdf';
+      } else if (extension === 'docx') {
+        mimeType = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+      } else if (extension === 'txt') {
+        mimeType = 'text/plain';
+      } else if (extension === 'md') {
+        mimeType = 'text/markdown';
+      }
+
+      // Connect socket if not connected
+      if (!SocketManager.isConnected()) {
+        await SocketManager.connect();
+      }
+
+      // Setup listeners (similar to sendMessageWithImage)
+      const handleStart = (data: { chatId: string }) => {
+        if (data.chatId === chatId) {
+          if (DEBUG) console.log('🎬 AI response started');
+          setIsThinking(false);
+          setIsStreaming(true);
+          streamingBufferRef.current = '';
+          setStreamingMessage('');
+        }
+      };
+
+      const handleChunk = (data: { chatId: string; chunk: string }) => {
+        if (data.chatId === chatId) {
+          if (DEBUG) console.log(`📨 Received chunk (${data.chunk.length} chars)`);
+          streamingBufferRef.current += data.chunk;
+          setStreamingMessage(streamingBufferRef.current);
+        }
+      };
+
+      const handleComplete = async (data: { chatId: string; messageId: string; fullResponse: string }) => {
+        if (data.chatId === chatId) {
+          if (DEBUG) console.log('✅ AI response complete');
+          
+          streamingBufferRef.current = data.fullResponse;
+          setStreamingMessage(data.fullResponse);
+          
+          const { chat } = await ChatService.getChatById(chatId!);
+          const updatedChat = convertChat(chat);
+          setChats(prev => prev.map(c => c.id === chatId ? updatedChat : c));
+
+          setIsStreaming(false);
+          setStreamingMessage('');
+          streamingBufferRef.current = '';
+
+          SocketManager.off('ai-response-start', handleStart);
+          SocketManager.off('ai-response-chunk', handleChunk);
+          SocketManager.off('ai-response-complete', handleComplete);
+          SocketManager.off('ai-response-error', handleError);
+        }
+      };
+
+      const handleError = (data: { chatId: string; error: string }) => {
+        if (data.chatId === chatId) {
+          console.error('❌ AI response error:', data.error);
+          
+          setIsThinking(false);
+          setIsStreaming(false);
+          setStreamingMessage('');
+          streamingBufferRef.current = '';
+          
+          SocketManager.off('ai-response-start', handleStart);
+          SocketManager.off('ai-response-chunk', handleChunk);
+          SocketManager.off('ai-response-complete', handleComplete);
+          SocketManager.off('ai-response-error', handleError);
+        }
+      };
+
+      SocketManager.onAIResponseStart(handleStart);
+      SocketManager.onAIResponseChunk(handleChunk);
+      SocketManager.onAIResponseComplete(handleComplete);
+      SocketManager.onAIResponseError(handleError);
+
+      // Send message with document via WebSocket
+      await SocketManager.sendMessageWithDocument(chatId, content, base64, mimeType, documentName);
+
+    } catch (error) {
+      console.error('Failed to send message with document:', error);
+      setIsThinking(false);
+      setIsStreaming(false);
+      setStreamingMessage('');
+      streamingBufferRef.current = '';
+      throw error;
+    }
+  };
+
   const clearCurrentChat = async () => {
     if (!currentChatId) return;
 
@@ -322,6 +571,8 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         addMessage,
         clearCurrentChat,
         sendMessage,
+        sendMessageWithImage,
+        sendMessageWithDocument,
         refreshChats,
       }}
     >

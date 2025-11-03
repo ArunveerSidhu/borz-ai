@@ -122,6 +122,88 @@ class SocketManager {
     });
   }
 
+  // Send message with image to server
+  async sendMessageWithImage(chatId: string, content: string, imageBase64: string, mimeType: string): Promise<void> {
+    if (!this.socket?.connected) {
+      await this.connect();
+    }
+
+    return new Promise((resolve, reject) => {
+      console.log('📤 Sending message with image via WebSocket:', { chatId, contentLength: content.length, imageSize: imageBase64.length });
+      this.socket!.emit('send-message-with-image', { chatId, content, imageBase64, mimeType });
+      
+      // Set timeout for response
+      const timeout = setTimeout(() => {
+        console.error('⏱️ Message send timeout');
+        this.socket!.off('message-saved', onMessageSaved);
+        this.socket!.off('error', onError);
+        reject(new Error('Message send timeout'));
+      }, 120000); // 120 second timeout for images
+
+      // Listen for confirmation
+      const onMessageSaved = (data: any) => {
+        console.log('✅ Message saved confirmation received:', data);
+        clearTimeout(timeout);
+        this.socket!.off('message-saved', onMessageSaved);
+        this.socket!.off('error', onError);
+        resolve();
+      };
+
+      const onError = (error: any) => {
+        console.error('❌ Socket error received:', error);
+        clearTimeout(timeout);
+        this.socket!.off('message-saved', onMessageSaved);
+        this.socket!.off('error', onError);
+        const errorMessage = error.message || error.error || 'Failed to send message with image';
+        reject(new Error(errorMessage));
+      };
+
+      this.socket!.once('message-saved', onMessageSaved);
+      this.socket!.once('error', onError);
+    });
+  }
+
+  // Send message with document to server
+  async sendMessageWithDocument(chatId: string, content: string, documentBase64: string, mimeType: string, fileName: string): Promise<void> {
+    if (!this.socket?.connected) {
+      await this.connect();
+    }
+
+    return new Promise((resolve, reject) => {
+      console.log('📤 Sending message with document via WebSocket:', { chatId, contentLength: content.length, fileName, documentSize: documentBase64.length });
+      this.socket!.emit('send-message-with-document', { chatId, content, documentBase64, mimeType, fileName });
+      
+      // Set timeout for response
+      const timeout = setTimeout(() => {
+        console.error('⏱️ Message send timeout');
+        this.socket!.off('message-saved', onMessageSaved);
+        this.socket!.off('error', onError);
+        reject(new Error('Message send timeout'));
+      }, 180000); // 180 second timeout for documents (can be large)
+
+      // Listen for confirmation
+      const onMessageSaved = (data: any) => {
+        console.log('✅ Message saved confirmation received:', data);
+        clearTimeout(timeout);
+        this.socket!.off('message-saved', onMessageSaved);
+        this.socket!.off('error', onError);
+        resolve();
+      };
+
+      const onError = (error: any) => {
+        console.error('❌ Socket error received:', error);
+        clearTimeout(timeout);
+        this.socket!.off('message-saved', onMessageSaved);
+        this.socket!.off('error', onError);
+        const errorMessage = error.message || error.error || 'Failed to send message with document';
+        reject(new Error(errorMessage));
+      };
+
+      this.socket!.once('message-saved', onMessageSaved);
+      this.socket!.once('error', onError);
+    });
+  }
+
   // Listen for AI response start
   onAIResponseStart(callback: (data: { chatId: string }) => void) {
     this.socket?.on('ai-response-start', callback);

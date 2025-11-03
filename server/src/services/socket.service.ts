@@ -175,6 +175,248 @@ export class SocketService {
         }
       });
 
+      // Handle message with image
+      socket.on('send-message-with-image', async (data: { chatId: string; content: string; imageBase64: string; mimeType: string }) => {
+        try {
+          const { chatId, content, imageBase64, mimeType } = data;
+          if (DEBUG) console.log(`📩 Received message with image from user ${userId} for chat ${chatId}`);
+
+          // ⚡ OPTIMIZATION: Verify chat and get history in parallel
+          const [chatResult, fullHistory] = await Promise.all([
+            db.select().from(chats).where(and(eq(chats.id, chatId), eq(chats.userId, userId))),
+            ChatService.getMessageHistory(chatId)
+          ]);
+
+          const [chat] = chatResult;
+          if (!chat) {
+            console.error(`❌ Chat ${chatId} not found for user ${userId}`);
+            socket.emit('error', { message: 'Chat not found' });
+            return;
+          }
+
+          // Prepare history for AI (before saving user message)
+          let limitedHistory = fullHistory.slice(-6);
+          
+          // Ensure history starts with a 'user' message (Gemini requirement)
+          if (limitedHistory.length > 0 && limitedHistory[0].role !== 'user') {
+            const firstUserIndex = limitedHistory.findIndex(msg => msg.role === 'user');
+            if (firstUserIndex > 0) {
+              limitedHistory = limitedHistory.slice(firstUserIndex);
+            } else if (firstUserIndex === -1) {
+              limitedHistory = [];
+            }
+          }
+          
+          if (DEBUG) console.log(`📚 History: ${fullHistory.length} total, using ${limitedHistory.length} messages`);
+
+          // ⚡ EMIT AI START IMMEDIATELY - don't wait for DB saves
+          socket.emit('ai-response-start', { chatId });
+
+          // ⚡ OPTIMIZATION: Save user message in background (non-blocking)
+          const saveUserMessagePromise = db
+            .insert(messages)
+            .values({
+              chatId,
+              content: `🖼️ [Image] ${content}`,
+              role: 'user',
+            })
+            .returning()
+            .then(([userMessage]) => {
+              socket.emit('message-saved', {
+                messageId: userMessage.id,
+                chatId,
+                content: userMessage.content,
+                role: 'user',
+                createdAt: userMessage.createdAt,
+              });
+              return userMessage;
+            });
+
+          // ⚡ Update title in background if needed (non-blocking)
+          if (chat.title === 'New Chat' && fullHistory.length === 0) {
+            const newTitle = content ? content.substring(0, 50) + (content.length > 50 ? '...' : '') : 'Image Analysis';
+            db.update(chats)
+              .set({ title: newTitle, updatedAt: new Date() })
+              .where(eq(chats.id, chatId))
+              .then(() => {
+                socket.emit('chat-title-updated', { chatId, title: newTitle });
+              })
+              .catch(err => console.error('Failed to update title:', err));
+          }
+
+          // ⚡ Start streaming IMMEDIATELY with Gemini Vision API
+          let fullResponse = '';
+          try {
+            if (DEBUG) console.log(`🤖 Starting AI Vision response generation for chat ${chatId}`);
+            
+            // Use Gemini Vision API for image analysis
+            const response = await GeminiService.generateWithImage(content || 'What do you see in this image?', imageBase64, mimeType);
+            
+            // Emit the response as chunks for consistent UX
+            const chunkSize = 100;
+            for (let i = 0; i < response.length; i += chunkSize) {
+              const chunk = response.substring(i, Math.min(i + chunkSize, response.length));
+              fullResponse += chunk;
+              if (DEBUG) console.log(`🔄 Emitting chunk to client (${chunk.length} chars)`);
+              socket.emit('ai-response-chunk', { chatId, chunk });
+              // Small delay for smoother streaming effect
+              await new Promise(resolve => setTimeout(resolve, 50));
+            }
+
+            if (DEBUG) console.log(`💾 Saving assistant message for chat ${chatId}`);
+            
+            // Wait for user message to be saved before saving assistant message
+            await saveUserMessagePromise;
+            
+            // Save complete response
+            const assistantMessage = await ChatService.saveAssistantMessage(chatId, fullResponse);
+
+            if (DEBUG) console.log(`✅ Message saved with ID ${assistantMessage.id}`);
+            // Emit completion
+            socket.emit('ai-response-complete', {
+              chatId,
+              messageId: assistantMessage.id,
+              fullResponse,
+              createdAt: assistantMessage.createdAt,
+            });
+
+          } catch (error) {
+            console.error('❌ AI generation error:', error);
+            socket.emit('ai-response-error', {
+              chatId,
+              error: error instanceof Error ? error.message : 'Failed to generate AI response',
+            });
+          }
+
+        } catch (error) {
+          console.error('❌ Send message with image error:', error);
+          socket.emit('error', {
+            message: error instanceof Error ? error.message : 'Failed to send message with image',
+          });
+        }
+      });
+
+      // Handle message with document
+      socket.on('send-message-with-document', async (data: { chatId: string; content: string; documentBase64: string; mimeType: string; fileName: string }) => {
+        try {
+          const { chatId, content, documentBase64, mimeType, fileName } = data;
+          if (DEBUG) console.log(`📩 Received message with document from user ${userId} for chat ${chatId}: ${fileName}`);
+
+          // ⚡ OPTIMIZATION: Verify chat and get history in parallel
+          const [chatResult, fullHistory] = await Promise.all([
+            db.select().from(chats).where(and(eq(chats.id, chatId), eq(chats.userId, userId))),
+            ChatService.getMessageHistory(chatId)
+          ]);
+
+          const [chat] = chatResult;
+          if (!chat) {
+            console.error(`❌ Chat ${chatId} not found for user ${userId}`);
+            socket.emit('error', { message: 'Chat not found' });
+            return;
+          }
+
+          // Prepare history for AI (before saving user message)
+          let limitedHistory = fullHistory.slice(-6);
+          
+          // Ensure history starts with a 'user' message (Gemini requirement)
+          if (limitedHistory.length > 0 && limitedHistory[0].role !== 'user') {
+            const firstUserIndex = limitedHistory.findIndex(msg => msg.role === 'user');
+            if (firstUserIndex > 0) {
+              limitedHistory = limitedHistory.slice(firstUserIndex);
+            } else if (firstUserIndex === -1) {
+              limitedHistory = [];
+            }
+          }
+          
+          if (DEBUG) console.log(`📚 History: ${fullHistory.length} total, using ${limitedHistory.length} messages`);
+
+          // ⚡ EMIT AI START IMMEDIATELY - don't wait for DB saves
+          socket.emit('ai-response-start', { chatId });
+
+          // ⚡ OPTIMIZATION: Save user message in background (non-blocking)
+          const saveUserMessagePromise = db
+            .insert(messages)
+            .values({
+              chatId,
+              content: `📄 [Document: ${fileName}] ${content}`,
+              role: 'user',
+            })
+            .returning()
+            .then(([userMessage]) => {
+              socket.emit('message-saved', {
+                messageId: userMessage.id,
+                chatId,
+                content: userMessage.content,
+                role: 'user',
+                createdAt: userMessage.createdAt,
+              });
+              return userMessage;
+            });
+
+          // ⚡ Update title in background if needed (non-blocking)
+          if (chat.title === 'New Chat' && fullHistory.length === 0) {
+            const newTitle = content ? content.substring(0, 50) + (content.length > 50 ? '...' : '') : `Document: ${fileName}`;
+            db.update(chats)
+              .set({ title: newTitle, updatedAt: new Date() })
+              .where(eq(chats.id, chatId))
+              .then(() => {
+                socket.emit('chat-title-updated', { chatId, title: newTitle });
+              })
+              .catch(err => console.error('Failed to update title:', err));
+          }
+
+          // ⚡ Start streaming IMMEDIATELY with Gemini Document Analysis
+          let fullResponse = '';
+          try {
+            if (DEBUG) console.log(`🤖 Starting AI Document response generation for chat ${chatId}`);
+            
+            // Use Gemini Document API for document analysis
+            const response = await GeminiService.generateWithDocument(content || 'Analyze this document', documentBase64, mimeType, fileName);
+            
+            // Emit the response as chunks for consistent UX
+            const chunkSize = 100;
+            for (let i = 0; i < response.length; i += chunkSize) {
+              const chunk = response.substring(i, Math.min(i + chunkSize, response.length));
+              fullResponse += chunk;
+              if (DEBUG) console.log(`🔄 Emitting chunk to client (${chunk.length} chars)`);
+              socket.emit('ai-response-chunk', { chatId, chunk });
+              // Small delay for smoother streaming effect
+              await new Promise(resolve => setTimeout(resolve, 50));
+            }
+
+            if (DEBUG) console.log(`💾 Saving assistant message for chat ${chatId}`);
+            
+            // Wait for user message to be saved before saving assistant message
+            await saveUserMessagePromise;
+            
+            // Save complete response
+            const assistantMessage = await ChatService.saveAssistantMessage(chatId, fullResponse);
+
+            if (DEBUG) console.log(`✅ Message saved with ID ${assistantMessage.id}`);
+            // Emit completion
+            socket.emit('ai-response-complete', {
+              chatId,
+              messageId: assistantMessage.id,
+              fullResponse,
+              createdAt: assistantMessage.createdAt,
+            });
+
+          } catch (error) {
+            console.error('❌ AI generation error:', error);
+            socket.emit('ai-response-error', {
+              chatId,
+              error: error instanceof Error ? error.message : 'Failed to generate AI response',
+            });
+          }
+
+        } catch (error) {
+          console.error('❌ Send message with document error:', error);
+          socket.emit('error', {
+            message: error instanceof Error ? error.message : 'Failed to send message with document',
+          });
+        }
+      });
+
       // Handle typing indicator
       socket.on('typing', (data: { chatId: string; isTyping: boolean }) => {
         socket.to(`chat:${data.chatId}`).emit('user-typing', {

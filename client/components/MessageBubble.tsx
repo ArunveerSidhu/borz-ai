@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, Text } from 'react-native';
+import { View, Text, Image } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import Animated, { 
   useSharedValue,
   useAnimatedStyle,
@@ -16,9 +17,12 @@ interface MessageBubbleProps {
   message: string;
   isUser: boolean;
   isStreaming?: boolean;
+  imageUri?: string;
+  documentUri?: string;
+  documentName?: string;
 }
 
-const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({ message, isUser, isStreaming = false }) => {
+const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({ message, isUser, isStreaming = false, imageUri, documentUri, documentName }) => {
   const cursorOpacity = useSharedValue(1);
 
   useEffect(() => {
@@ -54,6 +58,28 @@ const MessageBubbleComponent: React.FC<MessageBubbleProps> = ({ message, isUser,
         className="w-full px-4 py-3 flex-row justify-end"
       >
         <View className="max-w-[75%] bg-violet-500 rounded-3xl px-5 py-3">
+          {imageUri && (
+            <Image 
+              source={{ uri: imageUri }}
+              className="w-48 h-48 rounded-xl mb-3"
+              resizeMode="cover"
+            />
+          )}
+          {documentUri && documentName && (
+            <View className="bg-white/10 rounded-xl p-3 mb-3 flex-row items-center gap-2">
+              <View className="w-10 h-10 rounded-lg bg-white/20 items-center justify-center">
+                <Ionicons name="document-text" size={20} color="#ffffff" />
+              </View>
+              <View className="flex-1">
+                <Text className="text-white text-sm font-medium" numberOfLines={1}>
+                  {documentName}
+                </Text>
+                <Text className="text-white/70 text-xs mt-0.5">
+                  Document
+                </Text>
+              </View>
+            </View>
+          )}
           <Text className="text-white text-base leading-6">
             {message}
           </Text>
@@ -103,7 +129,10 @@ export const MessageBubble = React.memo(
       return (
         prevProps.message === nextProps.message &&
         prevProps.isUser === nextProps.isUser &&
-        prevProps.isStreaming === nextProps.isStreaming
+        prevProps.isStreaming === nextProps.isStreaming &&
+        prevProps.imageUri === nextProps.imageUri &&
+        prevProps.documentUri === nextProps.documentUri &&
+        prevProps.documentName === nextProps.documentName
       );
     }
     
@@ -111,7 +140,10 @@ export const MessageBubble = React.memo(
     return (
       prevProps.message === nextProps.message &&
       prevProps.isUser === nextProps.isUser &&
-      prevProps.isStreaming === nextProps.isStreaming
+      prevProps.isStreaming === nextProps.isStreaming &&
+      prevProps.imageUri === nextProps.imageUri &&
+      prevProps.documentUri === nextProps.documentUri &&
+      prevProps.documentName === nextProps.documentName
     );
   }
 );

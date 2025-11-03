@@ -35,12 +35,16 @@ export const ChatScreen: React.FC = () => {
   const { 
     currentChat, 
     sendMessage, 
+    sendMessageWithImage,
+    sendMessageWithDocument,
     createNewChat, 
     isThinking, 
     isStreaming, 
     streamingMessage 
   } = useChatContext();
   const [sidebarVisible, setSidebarVisible] = useState(false);
+  const [selectedImage, setSelectedImage] = useState<{ uri: string; type: 'camera' | 'photos' } | null>(null);
+  const [selectedDocument, setSelectedDocument] = useState<{ uri: string; name: string; mimeType?: string } | null>(null);
   const scrollViewRef = useRef<ScrollView>(null);
   const attachmentBottomSheetRef = useRef<BottomSheetModal>(null);
   const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -84,7 +88,18 @@ export const ChatScreen: React.FC = () => {
 
   const handleSend = async (text: string) => {
     try {
-      await sendMessage(text);
+      if (selectedImage) {
+        // Send message with image
+        await sendMessageWithImage(text, selectedImage.uri);
+        setSelectedImage(null);
+      } else if (selectedDocument) {
+        // Send message with document
+        await sendMessageWithDocument(text, selectedDocument.uri, selectedDocument.name);
+        setSelectedDocument(null);
+      } else {
+        // Send regular text message
+        await sendMessage(text);
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
       // You might want to show an error message to the user
@@ -103,9 +118,22 @@ export const ChatScreen: React.FC = () => {
     attachmentBottomSheetRef.current?.present();
   };
 
-  const handleAttachmentSelect = (optionId: string) => {
-    // TODO: Implement attachment handling for camera, photos, and files
-    console.log('Selected attachment option:', optionId);
+  const handleImageSelected = (uri: string, type: 'camera' | 'photos') => {
+    console.log('Image selected:', uri, type);
+    setSelectedImage({ uri, type });
+  };
+
+  const handleDocumentSelected = (uri: string, name: string, mimeType?: string) => {
+    console.log('Document selected:', uri, name, mimeType);
+    setSelectedDocument({ uri, name, mimeType });
+  };
+
+  const clearSelectedImage = () => {
+    setSelectedImage(null);
+  };
+
+  const clearSelectedDocument = () => {
+    setSelectedDocument(null);
   };
 
   // Animated keyboard handling - only for input
@@ -152,6 +180,9 @@ export const ChatScreen: React.FC = () => {
                 message={message.text}
                 isUser={message.isUser}
                 isStreaming={false}
+                imageUri={message.imageUri}
+                documentUri={message.documentUri}
+                documentName={message.documentName}
               />
             ))}
             
@@ -190,13 +221,18 @@ export const ChatScreen: React.FC = () => {
             onSend={handleSend} 
             disabled={isThinking || isStreaming}
             onAttachmentPress={handleOpenAttachments}
+            selectedImage={selectedImage}
+            selectedDocument={selectedDocument}
+            onClearImage={clearSelectedImage}
+            onClearDocument={clearSelectedDocument}
           />
         </Animated.View>
 
         {/* Attachment Bottom Sheet */}
         <AttachmentBottomSheet 
           ref={attachmentBottomSheetRef}
-          onOptionSelect={handleAttachmentSelect}
+          onImageSelected={handleImageSelected}
+          onDocumentSelected={handleDocumentSelected}
         />
       </View>
     </SafeAreaView>

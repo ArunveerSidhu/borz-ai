@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, ScrollView, Dimensions, Pressable } from 'react-native';
+import { View, Text, TouchableOpacity, ScrollView, Dimensions, Pressable, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { GestureDetector, Gesture } from 'react-native-gesture-handler';
@@ -24,9 +24,10 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
   const router = useRouter();
-  const { chats, currentChatId, createNewChat, switchChat, deleteChat } = useChatContext();
+  const { chats, currentChatId, createNewChat, switchChat, deleteChat, isLoading } = useChatContext();
   const { user } = useAuth();
   const [isAnimating, setIsAnimating] = useState(false);
+  const [isCreatingChat, setIsCreatingChat] = useState(false);
   const translateX = useSharedValue(-SIDEBAR_WIDTH);
 
   useEffect(() => {
@@ -46,8 +47,15 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
   };
 
   const handleNewChat = async () => {
-    await createNewChat();
-    onClose();
+    try {
+      setIsCreatingChat(true);
+      await createNewChat();
+      onClose();
+    } catch (error) {
+      console.error('Failed to create new chat:', error);
+    } finally {
+      setIsCreatingChat(false);
+    }
   };
 
   const handleDeleteChat = (chatId: string, e: any) => {
@@ -185,10 +193,18 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
               {/* New Chat Button */}
               <TouchableOpacity 
                 onPress={handleNewChat}
+                disabled={isCreatingChat}
                 className="bg-violet-500 rounded-xl py-3 px-4 flex-row items-center justify-center gap-2 active:bg-violet-600"
+                style={{ opacity: isCreatingChat ? 0.7 : 1 }}
               >
-                <Ionicons name="add" size={20} color="white" />
-                <Text className="text-white font-semibold text-base">New Chat</Text>
+                {isCreatingChat ? (
+                  <ActivityIndicator size="small" color="white" />
+                ) : (
+                  <Ionicons name="add" size={20} color="white" />
+                )}
+                <Text className="text-white font-semibold text-base">
+                  {isCreatingChat ? 'Creating...' : 'New Chat'}
+                </Text>
               </TouchableOpacity>
             </View>
 

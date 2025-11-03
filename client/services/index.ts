@@ -4,3 +4,5 @@ export type { SignUpData, LoginData, User, AuthResponse, UserProfile } from './a
 export { default as ChatService } from './chat.service';
 export type { Message, Chat } from './chat.service';
 
+export { default as SocketManager } from './socket.service';
+

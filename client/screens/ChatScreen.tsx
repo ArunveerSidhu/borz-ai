@@ -32,46 +32,61 @@ const formatTime = () => {
 };
 
 export const ChatScreen: React.FC = () => {
-  const { currentChat, sendMessage, createNewChat } = useChatContext();
-  const [isTyping, setIsTyping] = useState(false);
+  const { 
+    currentChat, 
+    sendMessage, 
+    createNewChat, 
+    isThinking, 
+    isStreaming, 
+    streamingMessage 
+  } = useChatContext();
   const [sidebarVisible, setSidebarVisible] = useState(false);
-  const [streamingMessage, setStreamingMessage] = useState<string>('');
-  const [isStreaming, setIsStreaming] = useState(false);
   const scrollViewRef = useRef<ScrollView>(null);
   const attachmentBottomSheetRef = useRef<BottomSheetModal>(null);
+  const scrollTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isStreamingRef = useRef(isStreaming);
 
   const messages = currentChat?.messages || [];
 
-  const scrollToBottom = () => {
-    setTimeout(() => {
-      scrollViewRef.current?.scrollToEnd({ animated: true });
-    }, 100);
+  // Track streaming state
+  useEffect(() => {
+    isStreamingRef.current = isStreaming;
+  }, [isStreaming]);
+
+  const scrollToBottom = (animated: boolean = true) => {
+    if (scrollTimeoutRef.current) {
+      clearTimeout(scrollTimeoutRef.current);
+    }
+    
+    scrollTimeoutRef.current = setTimeout(() => {
+      scrollViewRef.current?.scrollToEnd({ animated });
+    }, 50);
   };
 
+  // Scroll on messages change
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isTyping, streamingMessage]);
+    scrollToBottom(true);
+  }, [messages]);
+
+  // Smooth scroll during streaming with throttling
+  useEffect(() => {
+    if (isStreaming && streamingMessage) {
+      scrollToBottom(false); // No animation during streaming for smoothness
+    }
+  }, [streamingMessage, isStreaming]);
+
+  // Scroll when thinking starts
+  useEffect(() => {
+    if (isThinking) {
+      scrollToBottom(true);
+    }
+  }, [isThinking]);
 
   const handleSend = async (text: string) => {
     try {
-      setIsTyping(true);
-      setIsStreaming(true);
-      setStreamingMessage('');
-
-      // Send message with streaming callback
-      await sendMessage(text, (chunk) => {
-        setStreamingMessage(prev => prev + chunk);
-      });
-
-      // Clear streaming state after completion
-      setStreamingMessage('');
-      setIsStreaming(false);
-      setIsTyping(false);
+      await sendMessage(text);
     } catch (error) {
       console.error('Failed to send message:', error);
-      setIsTyping(false);
-      setIsStreaming(false);
-      setStreamingMessage('');
       // You might want to show an error message to the user
     }
   };
@@ -129,32 +144,38 @@ export const ChatScreen: React.FC = () => {
             contentContainerStyle={{ paddingTop: 60, paddingBottom: 16 }}
             showsVerticalScrollIndicator={false}
             keyboardShouldPersistTaps="handled"
+            removeClippedSubviews={true}
           >
-            {messages.map(message => (
+            {messages.map((message) => (
               <MessageBubble
                 key={message.id}
                 message={message.text}
                 isUser={message.isUser}
+                isStreaming={false}
               />
             ))}
             
-            {isTyping && !isStreaming && (
+            {/* Thinking indicator - shows before streaming starts */}
+            {isThinking && (
               <View className="w-full px-4 py-3 flex-row justify-start">
                 <View className="max-w-[85%]">
                   <Text className="text-zinc-500 text-xs font-medium mb-2 uppercase tracking-wide">
                     Borz AI
                   </Text>
-                  <View className="flex-row gap-1.5">
-                    <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" />
-                    <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-                    <View className="w-2 h-2 bg-zinc-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                  <View className="flex-row items-center gap-2">
+                    <View className="w-2 h-2 bg-violet-400 rounded-full opacity-100 animate-pulse" />
+                    <View className="w-2 h-2 bg-violet-400 rounded-full opacity-75 animate-pulse" style={{ animationDelay: '150ms' }} />
+                    <View className="w-2 h-2 bg-violet-400 rounded-full opacity-50 animate-pulse" style={{ animationDelay: '300ms' }} />
+                    <Text className="text-zinc-400 text-sm ml-1">Thinking...</Text>
                   </View>
                 </View>
               </View>
             )}
             
-            {isStreaming && streamingMessage && (
+            {/* Streaming message - shows during AI response */}
+            {isStreaming && (
               <MessageBubble
+                key="streaming-message"
                 message={streamingMessage}
                 isUser={false}
                 isStreaming={true}
@@ -167,7 +188,7 @@ export const ChatScreen: React.FC = () => {
         <Animated.View style={inputAnimatedStyles}>
           <ChatInput 
             onSend={handleSend} 
-            disabled={isTyping}
+            disabled={isThinking || isStreaming}
             onAttachmentPress={handleOpenAttachments}
           />
         </Animated.View>

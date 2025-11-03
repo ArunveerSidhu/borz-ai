@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
 import AuthService, { SignUpData, LoginData } from '../services/auth.service';
+import SocketManager from '../services/socket.service';
 
 interface User {
   id: number;
@@ -98,6 +99,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const logout = async () => {
     try {
+      // Disconnect socket first
+      SocketManager.disconnect();
+      
+      // Then clear auth data
       await AuthService.logout();
       setUser(null);
       setIsAuthenticated(false);

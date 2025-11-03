@@ -1,6 +1,7 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY!);
+const DEBUG = process.env.NODE_ENV !== 'production';
 
 interface MessageHistory {
   role: string;
@@ -8,13 +9,13 @@ interface MessageHistory {
 }
 
 export class GeminiService {
+  // ⚡ Using Gemini Flash for 2-3x faster responses with great quality
   private model = genAI.getGenerativeModel({ 
-    model: 'gemini-2.5-flash',
+    model: 'gemini-2.0-flash-exp',
     generationConfig: {
       temperature: 0.7,
       topP: 0.95,
       topK: 40,
-      maxOutputTokens: 2048,
     },
   });
 
@@ -43,6 +44,8 @@ export class GeminiService {
     history: MessageHistory[] = []
   ): AsyncGenerator<string, void, unknown> {
     try {
+      if (DEBUG) console.log(`🚀 Starting Gemini stream with ${history.length} history messages`);
+      
       const chat = this.model.startChat({
         history: history.map(msg => ({
           role: msg.role === 'user' ? 'user' : 'model',
@@ -51,13 +54,18 @@ export class GeminiService {
       });
 
       const result = await chat.sendMessageStream(prompt);
+      let chunkCount = 0;
       
       for await (const chunk of result.stream) {
         const text = chunk.text();
         if (text) {
+          chunkCount++;
+          if (DEBUG) console.log(`📦 Gemini chunk #${chunkCount}: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`);
           yield text;
         }
       }
+      
+      if (DEBUG) console.log(`✅ Gemini stream completed with ${chunkCount} chunks`);
     } catch (error: any) {
       console.error('Gemini Streaming Error:', {
         message: error.message,

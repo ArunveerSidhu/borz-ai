@@ -1,5 +1,5 @@
 import { Server as SocketIOServer } from 'socket.io';
-import type { ServerType } from '@hono/node-server';
+import type { Server as HttpServer } from 'http';
 import jwt from 'jsonwebtoken';
 import { ChatService } from './chat.service';
 import GeminiService from './gemini.service';
@@ -13,7 +13,7 @@ const DEBUG = process.env.NODE_ENV !== 'production';
 export class SocketService {
   private io: SocketIOServer;
 
-  constructor(server: ServerType) {
+  constructor(server: HttpServer) {
     // Configure CORS with environment variable support for Railway
     const allowedOrigins = (process.env.CORS_ORIGINS || '')
       .split(',')

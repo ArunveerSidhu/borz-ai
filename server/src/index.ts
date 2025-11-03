@@ -1,9 +1,9 @@
 import 'dotenv/config';
 import { createServer } from 'http';
+import { serve } from '@hono/node-server';
 import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
-import { createAdaptorServer } from '@hono/node-server';
 import authRoutes from './routes/auth.routes';
 import chatRoutes from './routes/chat.routes';
 import { SocketService } from './services/socket.service';
@@ -81,22 +81,23 @@ app.onError((err, c) => {
 });
 
 const port = Number(process.env.PORT) || 8080;
-const host = process.env.HOST || '0.0.0.0';
 
-console.log(`🚀 Server starting on ${host}:${port}...`);
+console.log(`🚀 Server starting on port ${port}...`);
 
-// Create HTTP server with Hono
-const httpServer = createAdaptorServer({
-  fetch: app.fetch,
-});
+// Create HTTP server for Socket.IO
+const httpServer = createServer();
 
-// Initialize Socket.IO with the HTTP server (cast to any for type compatibility)
-const socketService = new SocketService(httpServer as any);
+// Initialize Socket.IO with the HTTP server
+const socketService = new SocketService(httpServer);
 console.log('✅ WebSocket server initialized');
 
-// Start server - bind to all interfaces (0.0.0.0) for Railway
-httpServer.listen(port, host, () => {
-  console.log(`✅ Server is running on http://${host}:${port}`);
+// Use Hono's serve() function - it automatically handles Railway's port binding
+serve({
+  fetch: app.fetch,
+  port,
+  createServer: () => httpServer,
+}, (info) => {
+  console.log(`✅ Server is running on http://${info.address}:${info.port}`);
   console.log(`📡 REST API + WebSocket endpoints:`);
   console.log(`\n  Auth:`);
   console.log(`   POST   /auth/signup`);

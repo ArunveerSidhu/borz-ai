@@ -1,7 +1,13 @@
 import axios from 'axios';
 import * as SecureStore from 'expo-secure-store';
 
+// Use Railway URL or fallback to localhost:3000 (backend default port)
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3000';
+
+// Log API URL for debugging (remove in production)
+if (__DEV__) {
+  console.log('🔗 API Base URL:', API_BASE_URL);
+}
 const TOKEN_KEY = 'auth_token';
 
 // Create axios instance

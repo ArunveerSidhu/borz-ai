@@ -10,10 +10,9 @@ interface MessageHistory {
 }
 
 export class GeminiService {
-  // ⚡ Using Gemini 2.5 Flash - Latest stable model (June 2025)
-  // Best for price-performance, low-latency, and multimodal capabilities
   private model = genAI.getGenerativeModel({ 
     model: 'gemini-2.5-flash',
+    systemInstruction: 'You are Borz, an AI assistant. Your name is Borz. When asked who you are or what your name is, always respond that you are Borz. Never refer to yourself as Gemini or any other name.',
     generationConfig: {
       temperature: 0.7,
       topP: 0.95,
@@ -83,6 +82,7 @@ export class GeminiService {
       // Use gemini-2.5-flash for vision - supports multimodal (text, images, video, audio)
       const visionModel = genAI.getGenerativeModel({ 
         model: 'gemini-2.5-flash',
+        systemInstruction: 'You are Borz, an AI assistant. Your name is Borz. When asked who you are or what your name is, always respond that you are Borz. Never refer to yourself as Gemini or any other name.',
         generationConfig: {
           temperature: 0.7,
           topP: 0.95,

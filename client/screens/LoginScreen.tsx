@@ -80,7 +80,7 @@ export const LoginScreen: React.FC = () => {
                 <View className="flex-row items-center bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-1">
                   <Ionicons name="mail-outline" size={20} color="#71717a" />
                   <TextInput
-                    className="flex-1 text-white text-base ml-3"
+                    className="flex-1 text-white text-base ml-3 leading-tight py-2"
                     placeholder="Enter your email"
                     placeholderTextColor="#52525b"
                     value={email}
@@ -100,7 +100,7 @@ export const LoginScreen: React.FC = () => {
                 <View className="flex-row items-center bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-1">
                   <Ionicons name="lock-closed-outline" size={20} color="#71717a" />
                   <TextInput
-                    className="flex-1 text-white text-base ml-3"
+                    className="flex-1 text-white text-base ml-3 leading-tight py-2"
                     placeholder="Enter your password"
                     placeholderTextColor="#52525b"
                     value={password}

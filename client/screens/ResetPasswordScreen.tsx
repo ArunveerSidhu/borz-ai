@@ -155,7 +155,7 @@ export const ResetPasswordScreen: React.FC = () => {
                 <View className="flex-row items-center bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-2">
                   <Ionicons name="mail-outline" size={20} color="#71717a" />
                   <TextInput
-                    className="flex-1 text-white text-base ml-3"
+                    className="flex-1 text-white text-base ml-3 leading-tight py-1"
                     placeholder="Enter your email"
                     placeholderTextColor="#52525b"
                     value={email}

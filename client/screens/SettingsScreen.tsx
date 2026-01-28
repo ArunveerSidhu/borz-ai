@@ -3,11 +3,12 @@ import { View, Text, TouchableOpacity, ScrollView, Switch, Alert } from 'react-n
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/context';
+import { useAuthStore } from '@/stores';
 
 export const SettingsScreen: React.FC = () => {
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const user = useAuthStore(state => state.user);
+  const logout = useAuthStore(state => state.logout);
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [hapticFeedback, setHapticFeedback] = useState(true);
   const [darkMode, setDarkMode] = useState(true);

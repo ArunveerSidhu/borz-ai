@@ -10,9 +10,10 @@ interface MessageHistory {
 }
 
 export class GeminiService {
-  // ⚡ Using Gemini Flash for 2-3x faster responses with great quality
+  // ⚡ Using Gemini 2.5 Flash - Latest stable model (June 2025)
+  // Best for price-performance, low-latency, and multimodal capabilities
   private model = genAI.getGenerativeModel({ 
-    model: 'gemini-2.0-flash-exp',
+    model: 'gemini-2.5-flash',
     generationConfig: {
       temperature: 0.7,
       topP: 0.95,
@@ -79,9 +80,9 @@ export class GeminiService {
 
   async generateWithImage(prompt: string, imageBase64: string, mimeType: string): Promise<string> {
     try {
-      // Use the same fast model for vision - gemini-2.0-flash-exp supports multimodal
+      // Use gemini-2.5-flash for vision - supports multimodal (text, images, video, audio)
       const visionModel = genAI.getGenerativeModel({ 
-        model: 'gemini-2.0-flash-exp',
+        model: 'gemini-2.5-flash',
         generationConfig: {
           temperature: 0.7,
           topP: 0.95,

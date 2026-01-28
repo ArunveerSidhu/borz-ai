@@ -5,8 +5,8 @@ import Animated, { useAnimatedKeyboard, useAnimatedStyle } from 'react-native-re
 import { Ionicons } from '@expo/vector-icons';
 import { BottomSheetModal } from '@gorhom/bottom-sheet';
 import { MessageBubble, ChatInput, EmptyState, Sidebar, AttachmentBottomSheet } from '@/components';
-import { useChatContext } from '@/context';
-import type { Message } from '@/context';
+import { useChatStore } from '@/stores';
+import type { Message } from '@/stores';
 
 // Dummy AI responses for prototype
 const dummyResponses = [
@@ -32,16 +32,15 @@ const formatTime = () => {
 };
 
 export const ChatScreen: React.FC = () => {
-  const { 
-    currentChat, 
-    sendMessage, 
-    sendMessageWithImage,
-    sendMessageWithDocument,
-    createNewChat, 
-    isThinking, 
-    isStreaming, 
-    streamingMessage 
-  } = useChatContext();
+  const currentChat = useChatStore(state => state.currentChat());
+  const sendMessage = useChatStore(state => state.sendMessage);
+  const sendMessageWithImage = useChatStore(state => state.sendMessageWithImage);
+  const sendMessageWithDocument = useChatStore(state => state.sendMessageWithDocument);
+  const refreshChats = useChatStore(state => state.refreshChats);
+  const isThinking = useChatStore(state => state.isThinking);
+  const isStreaming = useChatStore(state => state.isStreaming);
+  const streamingMessage = useChatStore(state => state.streamingMessage);
+  
   const [sidebarVisible, setSidebarVisible] = useState(false);
   const [selectedImage, setSelectedImage] = useState<{ uri: string; type: 'camera' | 'photos' } | null>(null);
   const [selectedDocument, setSelectedDocument] = useState<{ uri: string; name: string; mimeType?: string } | null>(null);
@@ -51,6 +50,11 @@ export const ChatScreen: React.FC = () => {
   const isStreamingRef = useRef(isStreaming);
 
   const messages = currentChat?.messages || [];
+
+  // Load chats on mount
+  useEffect(() => {
+    refreshChats();
+  }, []);
 
   // Track streaming state
   useEffect(() => {

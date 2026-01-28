@@ -1,9 +1,9 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { create } from 'zustand';
 import ChatService, { Message as ServiceMessage, Chat as ServiceChat } from '../services/chat.service';
 import SocketManager from '../services/socket.service';
 import * as FileSystem from 'expo-file-system/legacy';
 
-const DEBUG = __DEV__; // React Native's built-in development mode flag
+const DEBUG = __DEV__;
 
 export interface Message {
   id: string;
@@ -19,37 +19,54 @@ export interface Chat {
   id: string;
   title: string;
   messages: Message[];
+  messageCount?: number;
   createdAt: string;
   updatedAt: string;
 }
 
-interface ChatContextType {
+interface ChatState {
+  // State
   chats: Chat[];
   currentChatId: string | null;
-  currentChat: Chat | null;
   isLoading: boolean;
   isThinking: boolean;
   isStreaming: boolean;
   streamingMessage: string;
+  streamingBuffer: string;
+
+  // Computed
+  currentChat: () => Chat | null;
+
+  // Actions
+  setChats: (chats: Chat[]) => void;
+  setCurrentChatId: (id: string | null) => void;
+  setIsLoading: (loading: boolean) => void;
+  setIsThinking: (thinking: boolean) => void;
+  setIsStreaming: (streaming: boolean) => void;
+  setStreamingMessage: (message: string) => void;
+  appendStreamingChunk: (chunk: string) => void;
+  clearStreaming: () => void;
+  
+  // Chat operations
+  refreshChats: () => Promise<void>;
   createNewChat: () => Promise<string>;
   switchChat: (chatId: string) => Promise<void>;
   deleteChat: (chatId: string) => Promise<void>;
   addMessage: (message: Message) => void;
+  updateChat: (chatId: string, updates: Partial<Chat>) => void;
   clearCurrentChat: () => Promise<void>;
+  
+  // Message sending
   sendMessage: (content: string) => Promise<void>;
   sendMessageWithImage: (content: string, imageUri: string) => Promise<void>;
   sendMessageWithDocument: (content: string, documentUri: string, documentName: string) => Promise<void>;
-  refreshChats: () => Promise<void>;
 }
-
-const ChatContext = createContext<ChatContextType | undefined>(undefined);
 
 const formatTime = () => {
   const now = new Date();
   return now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
 };
 
-// Convert service message to local message format
 const convertMessage = (msg: ServiceMessage): Message => ({
   id: msg.id,
   text: msg.content,
@@ -57,119 +74,183 @@ const convertMessage = (msg: ServiceMessage): Message => ({
   timestamp: new Date(msg.createdAt).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true }),
 });
 
-// Convert service chat to local chat format
 const convertChat = (chat: ServiceChat): Chat => ({
   id: chat.id,
   title: chat.title,
   messages: chat.messages ? chat.messages.map(convertMessage) : [],
+  messageCount: chat.messageCount,
   createdAt: chat.createdAt,
   updatedAt: chat.updatedAt,
 });
 
-export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [chats, setChats] = useState<Chat[]>([]);
-  const [currentChatId, setCurrentChatId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
-  const [isThinking, setIsThinking] = useState(false);
-  const [isStreaming, setIsStreaming] = useState(false);
-  const [streamingMessage, setStreamingMessage] = useState('');
+export const useChatStore = create<ChatState>((set, get) => ({
+  // Initial state
+  chats: [],
+  currentChatId: null,
+  isLoading: false,
+  isThinking: false,
+  isStreaming: false,
+  streamingMessage: '',
+  streamingBuffer: '',
+
+  // Computed
+  currentChat: () => {
+    const { chats, currentChatId } = get();
+    return chats.find(chat => chat.id === currentChatId) || null;
+  },
+
+  // Basic setters
+  setChats: (chats) => set({ chats }),
+  setCurrentChatId: (id) => set({ currentChatId: id }),
+  setIsLoading: (loading) => set({ isLoading: loading }),
+  setIsThinking: (thinking) => set({ isThinking: thinking }),
+  setIsStreaming: (streaming) => set({ isStreaming: streaming }),
+  setStreamingMessage: (message) => set({ streamingMessage: message }),
   
-  // Refs for real-time chunk streaming
-  const streamingBufferRef = React.useRef(''); // What we've received from backend
+  appendStreamingChunk: (chunk) => {
+    const newBuffer = get().streamingBuffer + chunk;
+    set({ 
+      streamingBuffer: newBuffer,
+      streamingMessage: newBuffer 
+    });
+  },
 
-  const currentChat = chats.find(chat => chat.id === currentChatId) || null;
+  clearStreaming: () => set({ 
+    isStreaming: false, 
+    isThinking: false,
+    streamingMessage: '', 
+    streamingBuffer: '' 
+  }),
 
-  // Load chats on mount
-  useEffect(() => {
-    refreshChats();
-  }, []);
-
-
-  const refreshChats = async () => {
+  // Refresh chats from server
+  refreshChats: async () => {
     try {
-      setIsLoading(true);
+      set({ isLoading: true });
       const { chats: fetchedChats } = await ChatService.getUserChats();
-      setChats(fetchedChats.map(convertChat));
+      set({ chats: fetchedChats.map(convertChat) });
     } catch (error) {
       console.error('Failed to refresh chats:', error);
     } finally {
-      setIsLoading(false);
+      set({ isLoading: false });
     }
-  };
+  },
 
-  const createNewChat = async (): Promise<string> => {
+  // Create new chat
+  createNewChat: async () => {
     try {
-      setIsLoading(true);
+      set({ isLoading: true });
       const { chat } = await ChatService.createChat();
       const newChat = convertChat(chat);
-      setChats(prev => [newChat, ...prev]);
-      setCurrentChatId(newChat.id);
+      set(state => ({
+        chats: [newChat, ...state.chats],
+        currentChatId: newChat.id
+      }));
       return newChat.id;
     } catch (error) {
       console.error('Failed to create chat:', error);
       throw error;
     } finally {
-      setIsLoading(false);
+      set({ isLoading: false });
     }
-  };
+  },
 
-  const switchChat = async (chatId: string) => {
+  // Switch to a different chat
+  switchChat: async (chatId) => {
     try {
-      setIsLoading(true);
-      setCurrentChatId(chatId);
+      set({ isLoading: true, currentChatId: chatId });
       
-      // Fetch full chat with messages if not already loaded
-      const existingChat = chats.find(c => c.id === chatId);
+      const existingChat = get().chats.find(c => c.id === chatId);
       if (!existingChat || existingChat.messages.length === 0) {
         const { chat } = await ChatService.getChatById(chatId);
         const fullChat = convertChat(chat);
-        setChats(prev => prev.map(c => c.id === chatId ? fullChat : c));
+        set(state => ({
+          chats: state.chats.map(c => c.id === chatId ? fullChat : c)
+        }));
       }
     } catch (error) {
       console.error('Failed to switch chat:', error);
     } finally {
-      setIsLoading(false);
+      set({ isLoading: false });
     }
-  };
+  },
 
-  const deleteChat = async (chatId: string) => {
+  // Delete chat
+  deleteChat: async (chatId) => {
     try {
       await ChatService.deleteChat(chatId);
-      setChats(prev => prev.filter(chat => chat.id !== chatId));
+      const state = get();
+      const remainingChats = state.chats.filter(chat => chat.id !== chatId);
       
-      if (currentChatId === chatId) {
-        const remainingChats = chats.filter(chat => chat.id !== chatId);
-        setCurrentChatId(remainingChats.length > 0 ? remainingChats[0].id : null);
-      }
+      set({
+        chats: remainingChats,
+        currentChatId: state.currentChatId === chatId 
+          ? (remainingChats.length > 0 ? remainingChats[0].id : null)
+          : state.currentChatId
+      });
     } catch (error) {
       console.error('Failed to delete chat:', error);
       throw error;
     }
-  };
+  },
 
-  const addMessage = (message: Message) => {
-    // Add message locally (for optimistic updates)
-    setChats(prev => prev.map(chat => {
-      if (chat.id === currentChatId) {
-        return {
-          ...chat,
-          messages: [...chat.messages, message],
-          updatedAt: new Date().toISOString(),
-        };
-      }
-      return chat;
+  // Add message to current chat (optimistic update)
+  addMessage: (message) => {
+    set(state => ({
+      chats: state.chats.map(chat => {
+        if (chat.id === state.currentChatId) {
+          return {
+            ...chat,
+            messages: [...chat.messages, message],
+            updatedAt: new Date().toISOString(),
+          };
+        }
+        return chat;
+      })
     }));
-  };
+  },
 
-  const sendMessage = async (content: string) => {
-    let chatId = currentChatId;
+  // Update specific chat
+  updateChat: (chatId, updates) => {
+    set(state => ({
+      chats: state.chats.map(chat => 
+        chat.id === chatId ? { ...chat, ...updates } : chat
+      )
+    }));
+  },
+
+  // Clear current chat messages
+  clearCurrentChat: async () => {
+    const { currentChatId } = get();
+    if (!currentChatId) return;
+
+    try {
+      await ChatService.clearChatMessages(currentChatId);
+      set(state => ({
+        chats: state.chats.map(chat => {
+          if (chat.id === currentChatId) {
+            return {
+              ...chat,
+              messages: [],
+              updatedAt: new Date().toISOString(),
+            };
+          }
+          return chat;
+        })
+      }));
+    } catch (error) {
+      console.error('Failed to clear chat:', error);
+      throw error;
+    }
+  },
+
+  // Send text message
+  sendMessage: async (content) => {
+    let chatId = get().currentChatId;
     
     if (!chatId) {
-      // Create a new chat first and get its ID
-      chatId = await createNewChat();
+      chatId = await get().createNewChat();
     }
 
-    // Guard: ensure chatId is set
     if (!chatId) {
       console.error('Failed to get or create chat ID');
       return;
@@ -182,36 +263,38 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       isUser: true,
       timestamp: formatTime(),
     };
-    addMessage(userMessage);
+    get().addMessage(userMessage);
 
-    // Set thinking state and clear buffer
-    setIsThinking(true);
-    setStreamingMessage('');
-    streamingBufferRef.current = '';
+    // Set thinking state and clear streaming buffer
+    set({ 
+      isThinking: true, 
+      streamingMessage: '', 
+      streamingBuffer: '' 
+    });
 
     try {
-      // Connect socket if not connected
+      // Connect socket if needed
       if (!SocketManager.isConnected()) {
         await SocketManager.connect();
       }
 
-      // Setup listeners for this specific message
+      // Setup socket listeners
       const handleStart = (data: { chatId: string }) => {
         if (data.chatId === chatId) {
           if (DEBUG) console.log('🎬 AI response started');
-          setIsThinking(false);
-          setIsStreaming(true);
-          streamingBufferRef.current = '';
-          setStreamingMessage('');
+          set({ 
+            isThinking: false, 
+            isStreaming: true,
+            streamingBuffer: '',
+            streamingMessage: '' 
+          });
         }
       };
 
       const handleChunk = (data: { chatId: string; chunk: string }) => {
         if (data.chatId === chatId) {
           if (DEBUG) console.log(`📨 Received chunk (${data.chunk.length} chars)`);
-          // Add chunk to buffer and display immediately - real-time like ChatGPT
-          streamingBufferRef.current += data.chunk;
-          setStreamingMessage(streamingBufferRef.current);
+          get().appendStreamingChunk(data.chunk);
         }
       };
 
@@ -219,21 +302,22 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (data.chatId === chatId) {
           if (DEBUG) console.log('✅ AI response complete');
           
-          // Ensure we show the complete response while we fetch from DB
-          streamingBufferRef.current = data.fullResponse;
-          setStreamingMessage(data.fullResponse);
+          // Show complete response while fetching from DB
+          set({ 
+            streamingBuffer: data.fullResponse,
+            streamingMessage: data.fullResponse 
+          });
           
-          // Fetch the updated chat FIRST, then clear streaming
+          // Fetch updated chat
           const { chat } = await ChatService.getChatById(chatId!);
           const updatedChat = convertChat(chat);
           
-          // Update the chat state with the final message
-          setChats(prev => prev.map(c => c.id === chatId ? updatedChat : c));
+          set(state => ({
+            chats: state.chats.map(c => c.id === chatId ? updatedChat : c)
+          }));
           
-          // Now clear streaming state AFTER the new message is in the chat
-          setIsStreaming(false);
-          setStreamingMessage('');
-          streamingBufferRef.current = '';
+          // Clear streaming state
+          get().clearStreaming();
 
           // Cleanup listeners
           SocketManager.off('ai-response-start', handleStart);
@@ -246,12 +330,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const handleError = (data: { chatId: string; error: string }) => {
         if (data.chatId === chatId) {
           console.error('❌ AI response error:', data.error);
-          
-          // Clear buffers
-          setIsThinking(false);
-          setIsStreaming(false);
-          setStreamingMessage('');
-          streamingBufferRef.current = '';
+          get().clearStreaming();
           
           // Cleanup listeners
           SocketManager.off('ai-response-start', handleStart);
@@ -263,9 +342,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const handleTitleUpdate = (data: { chatId: string; title: string }) => {
         if (data.chatId === chatId) {
-          setChats(prev => prev.map(c => 
-            c.id === chatId ? { ...c, title: data.title } : c
-          ));
+          get().updateChat(chatId, { title: data.title });
         }
       };
 
@@ -281,21 +358,17 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
     } catch (error) {
       console.error('Failed to send message:', error);
-      
-      // Clear buffers
-      setIsThinking(false);
-      setIsStreaming(false);
-      setStreamingMessage('');
-      streamingBufferRef.current = '';
+      get().clearStreaming();
       throw error;
     }
-  };
+  },
 
-  const sendMessageWithImage = async (content: string, imageUri: string) => {
-    let chatId = currentChatId;
+  // Send message with image
+  sendMessageWithImage: async (content, imageUri) => {
+    let chatId = get().currentChatId;
     
     if (!chatId) {
-      chatId = await createNewChat();
+      chatId = await get().createNewChat();
     }
 
     if (!chatId) {
@@ -303,7 +376,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    // Add user message optimistically with actual image
+    // Add user message with image
     const userMessage: Message = {
       id: `temp-${Date.now()}`,
       text: content || 'Analyze this image',
@@ -311,11 +384,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       timestamp: formatTime(),
       imageUri: imageUri,
     };
-    addMessage(userMessage);
+    get().addMessage(userMessage);
 
-    setIsThinking(true);
-    setStreamingMessage('');
-    streamingBufferRef.current = '';
+    set({ 
+      isThinking: true, 
+      streamingMessage: '', 
+      streamingBuffer: '' 
+    });
 
     try {
       // Convert image to base64
@@ -323,31 +398,30 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         encoding: 'base64',
       });
 
-      // Get image mime type from URI extension
       const extension = imageUri.split('.').pop()?.toLowerCase();
       const mimeType = extension === 'png' ? 'image/png' : 'image/jpeg';
 
-      // Connect socket if not connected
       if (!SocketManager.isConnected()) {
         await SocketManager.connect();
       }
 
-      // Setup listeners (similar to sendMessage)
+      // Setup listeners (same as sendMessage)
       const handleStart = (data: { chatId: string }) => {
         if (data.chatId === chatId) {
           if (DEBUG) console.log('🎬 AI response started');
-          setIsThinking(false);
-          setIsStreaming(true);
-          streamingBufferRef.current = '';
-          setStreamingMessage('');
+          set({ 
+            isThinking: false, 
+            isStreaming: true,
+            streamingBuffer: '',
+            streamingMessage: '' 
+          });
         }
       };
 
       const handleChunk = (data: { chatId: string; chunk: string }) => {
         if (data.chatId === chatId) {
           if (DEBUG) console.log(`📨 Received chunk (${data.chunk.length} chars)`);
-          streamingBufferRef.current += data.chunk;
-          setStreamingMessage(streamingBufferRef.current);
+          get().appendStreamingChunk(data.chunk);
         }
       };
 
@@ -355,16 +429,19 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (data.chatId === chatId) {
           if (DEBUG) console.log('✅ AI response complete');
           
-          streamingBufferRef.current = data.fullResponse;
-          setStreamingMessage(data.fullResponse);
+          set({ 
+            streamingBuffer: data.fullResponse,
+            streamingMessage: data.fullResponse 
+          });
           
           const { chat } = await ChatService.getChatById(chatId!);
           const updatedChat = convertChat(chat);
-          setChats(prev => prev.map(c => c.id === chatId ? updatedChat : c));
+          
+          set(state => ({
+            chats: state.chats.map(c => c.id === chatId ? updatedChat : c)
+          }));
 
-          setIsStreaming(false);
-          setStreamingMessage('');
-          streamingBufferRef.current = '';
+          get().clearStreaming();
 
           SocketManager.off('ai-response-start', handleStart);
           SocketManager.off('ai-response-chunk', handleChunk);
@@ -376,11 +453,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const handleError = (data: { chatId: string; error: string }) => {
         if (data.chatId === chatId) {
           console.error('❌ AI response error:', data.error);
-          
-          setIsThinking(false);
-          setIsStreaming(false);
-          setStreamingMessage('');
-          streamingBufferRef.current = '';
+          get().clearStreaming();
           
           SocketManager.off('ai-response-start', handleStart);
           SocketManager.off('ai-response-chunk', handleChunk);
@@ -394,24 +467,21 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       SocketManager.onAIResponseComplete(handleComplete);
       SocketManager.onAIResponseError(handleError);
 
-      // Send message with image via WebSocket
       await SocketManager.sendMessageWithImage(chatId, content, base64, mimeType);
 
     } catch (error) {
       console.error('Failed to send message with image:', error);
-      setIsThinking(false);
-      setIsStreaming(false);
-      setStreamingMessage('');
-      streamingBufferRef.current = '';
+      get().clearStreaming();
       throw error;
     }
-  };
+  },
 
-  const sendMessageWithDocument = async (content: string, documentUri: string, documentName: string) => {
-    let chatId = currentChatId;
+  // Send message with document
+  sendMessageWithDocument: async (content, documentUri, documentName) => {
+    let chatId = get().currentChatId;
     
     if (!chatId) {
-      chatId = await createNewChat();
+      chatId = await get().createNewChat();
     }
 
     if (!chatId) {
@@ -419,7 +489,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       return;
     }
 
-    // Add user message optimistically with document reference
+    // Add user message with document
     const userMessage: Message = {
       id: `temp-${Date.now()}`,
       text: content || 'Analyze this document',
@@ -428,11 +498,13 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       documentUri: documentUri,
       documentName: documentName,
     };
-    addMessage(userMessage);
+    get().addMessage(userMessage);
 
-    setIsThinking(true);
-    setStreamingMessage('');
-    streamingBufferRef.current = '';
+    set({ 
+      isThinking: true, 
+      streamingMessage: '', 
+      streamingBuffer: '' 
+    });
 
     try {
       // Convert document to base64
@@ -440,7 +512,6 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         encoding: 'base64',
       });
 
-      // Get document mime type from URI extension
       const extension = documentUri.split('.').pop()?.toLowerCase();
       let mimeType = 'application/octet-stream';
       
@@ -454,27 +525,27 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         mimeType = 'text/markdown';
       }
 
-      // Connect socket if not connected
       if (!SocketManager.isConnected()) {
         await SocketManager.connect();
       }
 
-      // Setup listeners (similar to sendMessageWithImage)
+      // Setup listeners (same pattern)
       const handleStart = (data: { chatId: string }) => {
         if (data.chatId === chatId) {
           if (DEBUG) console.log('🎬 AI response started');
-          setIsThinking(false);
-          setIsStreaming(true);
-          streamingBufferRef.current = '';
-          setStreamingMessage('');
+          set({ 
+            isThinking: false, 
+            isStreaming: true,
+            streamingBuffer: '',
+            streamingMessage: '' 
+          });
         }
       };
 
       const handleChunk = (data: { chatId: string; chunk: string }) => {
         if (data.chatId === chatId) {
           if (DEBUG) console.log(`📨 Received chunk (${data.chunk.length} chars)`);
-          streamingBufferRef.current += data.chunk;
-          setStreamingMessage(streamingBufferRef.current);
+          get().appendStreamingChunk(data.chunk);
         }
       };
 
@@ -482,16 +553,19 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         if (data.chatId === chatId) {
           if (DEBUG) console.log('✅ AI response complete');
           
-          streamingBufferRef.current = data.fullResponse;
-          setStreamingMessage(data.fullResponse);
+          set({ 
+            streamingBuffer: data.fullResponse,
+            streamingMessage: data.fullResponse 
+          });
           
           const { chat } = await ChatService.getChatById(chatId!);
           const updatedChat = convertChat(chat);
-          setChats(prev => prev.map(c => c.id === chatId ? updatedChat : c));
+          
+          set(state => ({
+            chats: state.chats.map(c => c.id === chatId ? updatedChat : c)
+          }));
 
-          setIsStreaming(false);
-          setStreamingMessage('');
-          streamingBufferRef.current = '';
+          get().clearStreaming();
 
           SocketManager.off('ai-response-start', handleStart);
           SocketManager.off('ai-response-chunk', handleChunk);
@@ -503,11 +577,7 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const handleError = (data: { chatId: string; error: string }) => {
         if (data.chatId === chatId) {
           console.error('❌ AI response error:', data.error);
-          
-          setIsThinking(false);
-          setIsStreaming(false);
-          setStreamingMessage('');
-          streamingBufferRef.current = '';
+          get().clearStreaming();
           
           SocketManager.off('ai-response-start', handleStart);
           SocketManager.off('ai-response-chunk', handleChunk);
@@ -521,70 +591,12 @@ export const ChatProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       SocketManager.onAIResponseComplete(handleComplete);
       SocketManager.onAIResponseError(handleError);
 
-      // Send message with document via WebSocket
       await SocketManager.sendMessageWithDocument(chatId, content, base64, mimeType, documentName);
 
     } catch (error) {
       console.error('Failed to send message with document:', error);
-      setIsThinking(false);
-      setIsStreaming(false);
-      setStreamingMessage('');
-      streamingBufferRef.current = '';
+      get().clearStreaming();
       throw error;
     }
-  };
-
-  const clearCurrentChat = async () => {
-    if (!currentChatId) return;
-
-    try {
-      await ChatService.clearChatMessages(currentChatId);
-      setChats(prev => prev.map(chat => {
-        if (chat.id === currentChatId) {
-          return {
-            ...chat,
-            messages: [],
-            updatedAt: new Date().toISOString(),
-          };
-        }
-        return chat;
-      }));
-    } catch (error) {
-      console.error('Failed to clear chat:', error);
-      throw error;
-    }
-  };
-
-  return (
-    <ChatContext.Provider
-      value={{
-        chats,
-        currentChatId,
-        currentChat,
-        isLoading,
-        isThinking,
-        isStreaming,
-        streamingMessage,
-        createNewChat,
-        switchChat,
-        deleteChat,
-        addMessage,
-        clearCurrentChat,
-        sendMessage,
-        sendMessageWithImage,
-        sendMessageWithDocument,
-        refreshChats,
-      }}
-    >
-      {children}
-    </ChatContext.Provider>
-  );
-};
-
-export const useChatContext = () => {
-  const context = useContext(ChatContext);
-  if (!context) {
-    throw new Error('useChatContext must be used within a ChatProvider');
-  }
-  return context;
-};
+  },
+}));

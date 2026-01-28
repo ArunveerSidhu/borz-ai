@@ -1,14 +1,15 @@
 import React, { useEffect } from 'react';
 import { View, ActivityIndicator } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/context';
+import { useAuthStore } from '@/stores';
 
 interface GuestGuardProps {
   children: React.ReactNode;
 }
 
 export const GuestGuard: React.FC<GuestGuardProps> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+  const isAuthenticated = useAuthStore(state => state.isAuthenticated);
+  const isLoading = useAuthStore(state => state.isLoading);
   const router = useRouter();
 
   useEffect(() => {

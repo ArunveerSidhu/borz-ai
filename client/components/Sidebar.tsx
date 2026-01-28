@@ -12,8 +12,7 @@ import Animated, {
   Extrapolate
 } from 'react-native-reanimated';
 import { useRouter } from 'expo-router';
-import { useChatContext } from '@/context';
-import { useAuth } from '@/context';
+import { useChatStore, useAuthStore } from '@/stores';
 
 const SIDEBAR_WIDTH = Dimensions.get('window').width * 0.85;
 
@@ -24,8 +23,13 @@ interface SidebarProps {
 
 export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
   const router = useRouter();
-  const { chats, currentChatId, createNewChat, switchChat, deleteChat, isLoading } = useChatContext();
-  const { user } = useAuth();
+  const user = useAuthStore(state => state.user);
+  const chats = useChatStore(state => state.chats);
+  const currentChatId = useChatStore(state => state.currentChatId);
+  const createNewChat = useChatStore(state => state.createNewChat);
+  const switchChat = useChatStore(state => state.switchChat);
+  const deleteChat = useChatStore(state => state.deleteChat);
+  const isLoading = useChatStore(state => state.isLoading);
   const [isAnimating, setIsAnimating] = useState(false);
   const [isCreatingChat, setIsCreatingChat] = useState(false);
   const translateX = useSharedValue(-SIDEBAR_WIDTH);
@@ -249,7 +253,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ visible, onClose }) => {
                         </Text>
                         <View className="flex-row items-center gap-2">
                           <Text className="text-zinc-500 text-xs">
-                            {chat.messages.length} {chat.messages.length === 1 ? 'message' : 'messages'}
+                            {chat.messageCount ?? chat.messages.length} {(chat.messageCount ?? chat.messages.length) === 1 ? 'message' : 'messages'}
                           </Text>
                           <Text className="text-zinc-600">•</Text>
                           <Text className="text-zinc-500 text-xs">

@@ -4,11 +4,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import Animated, { FadeInDown, FadeInUp } from 'react-native-reanimated';
-import { useAuth } from '@/context';
+import { useAuthStore } from '@/stores';
 
 export const SignUpScreen: React.FC = () => {
   const router = useRouter();
-  const { signup } = useAuth();
+  const signup = useAuthStore(state => state.signup);
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

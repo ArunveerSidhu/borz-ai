@@ -1,36 +1,45 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { create } from 'zustand';
 import AuthService, { SignUpData, LoginData } from '../services/auth.service';
 import SocketManager from '../services/socket.service';
 
-interface User {
+export interface User {
   id: number;
   name: string;
   email: string;
 }
 
-interface AuthContextType {
+interface AuthState {
+  // State
   user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+
+  // Actions
+  setUser: (user: User | null) => void;
+  setIsAuthenticated: (isAuthenticated: boolean) => void;
+  setIsLoading: (isLoading: boolean) => void;
+  
+  // Auth operations
+  checkAuthStatus: () => Promise<void>;
   login: (data: LoginData) => Promise<void>;
   signup: (data: SignUpData) => Promise<void>;
   logout: () => Promise<void>;
   refreshAuth: () => Promise<void>;
 }
 
-const AuthContext = createContext<AuthContextType | undefined>(undefined);
+export const useAuthStore = create<AuthState>((set, get) => ({
+  // Initial state
+  user: null,
+  isAuthenticated: false,
+  isLoading: true,
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
+  // Basic setters
+  setUser: (user) => set({ user }),
+  setIsAuthenticated: (isAuthenticated) => set({ isAuthenticated }),
+  setIsLoading: (isLoading) => set({ isLoading }),
 
-  // Check authentication on mount
-  useEffect(() => {
-    checkAuthStatus();
-  }, []);
-
-  const checkAuthStatus = async () => {
+  // Check authentication status
+  checkAuthStatus: async () => {
     try {
       // First check if we have a token
       const token = await AuthService.getToken();
@@ -40,13 +49,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const storedUser = await AuthService.getStoredUser();
         
         if (storedUser) {
-          setUser(storedUser);
-          setIsAuthenticated(true);
+          set({ 
+            user: storedUser, 
+            isAuthenticated: true 
+          });
           
           // Optionally verify with server in background
           AuthService.getProfile()
             .then((profile) => {
-              setUser(profile.user);
+              set({ user: profile.user });
             })
             .catch((error) => {
               console.error('Background auth check failed:', error);
@@ -55,90 +66,84 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         } else {
           // No cached user, fetch from server
           const profile = await AuthService.getProfile();
-          setUser(profile.user);
-          setIsAuthenticated(true);
+          set({ 
+            user: profile.user, 
+            isAuthenticated: true 
+          });
         }
       } else {
-        setUser(null);
-        setIsAuthenticated(false);
+        set({ 
+          user: null, 
+          isAuthenticated: false 
+        });
       }
     } catch (error) {
       console.error('Auth check failed:', error);
       // Clear any corrupted data
       await AuthService.clearAuthData();
-      setUser(null);
-      setIsAuthenticated(false);
+      set({ 
+        user: null, 
+        isAuthenticated: false 
+      });
     } finally {
-      setIsLoading(false);
+      set({ isLoading: false });
     }
-  };
+  },
 
-  const login = async (data: LoginData) => {
+  // Login user
+  login: async (data) => {
     try {
       const response = await AuthService.login(data);
-      setUser(response.user);
-      setIsAuthenticated(true);
+      set({ 
+        user: response.user, 
+        isAuthenticated: true 
+      });
     } catch (error: any) {
       console.error('Login error:', error);
       const message = error.error || error.message || 'Login failed';
       throw new Error(message);
     }
-  };
+  },
 
-  const signup = async (data: SignUpData) => {
+  // Sign up user
+  signup: async (data) => {
     try {
       const response = await AuthService.signup(data);
-      setUser(response.user);
-      setIsAuthenticated(true);
+      set({ 
+        user: response.user, 
+        isAuthenticated: true 
+      });
     } catch (error: any) {
       console.error('Signup error:', error);
       const message = error.error || error.message || 'Sign up failed';
       throw new Error(message);
     }
-  };
+  },
 
-  const logout = async () => {
+  // Logout user
+  logout: async () => {
     try {
       // Disconnect socket first
       SocketManager.disconnect();
       
       // Then clear auth data
       await AuthService.logout();
-      setUser(null);
-      setIsAuthenticated(false);
+      set({ 
+        user: null, 
+        isAuthenticated: false 
+      });
     } catch (error) {
       console.error('Logout failed:', error);
       throw error;
     }
-  };
+  },
 
-  const refreshAuth = async () => {
-    setIsLoading(true);
-    await checkAuthStatus();
-  };
+  // Refresh authentication
+  refreshAuth: async () => {
+    set({ isLoading: true });
+    await get().checkAuthStatus();
+  },
+}));
 
-  return (
-    <AuthContext.Provider
-      value={{
-        user,
-        isAuthenticated,
-        isLoading,
-        login,
-        signup,
-        logout,
-        refreshAuth,
-      }}
-    >
-      {children}
-    </AuthContext.Provider>
-  );
-};
-
-export const useAuth = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
-};
-
+// Initialize auth check on store creation
+useAuthStore.getState().checkAuthStatus();

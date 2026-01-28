@@ -102,7 +102,7 @@ export const ChatInput: React.FC<ChatInputProps> = ({
                 placeholderTextColor="#71717a"
                 multiline
                 maxLength={2000}
-                className="flex-1 text-white text-base py-0 max-h-32"
+                className="flex-1 text-white text-base py-0 max-h-32 leading-tight"
                 editable={!disabled}
                 onSubmitEditing={handleSend}
               />
